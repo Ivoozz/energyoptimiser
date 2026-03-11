@@ -48,6 +48,6 @@ LABEL \
     io.hass.description="Smart battery charging/discharging based on Nordpool prices and Solarman 6-program control." \
     io.hass.arch="armhf|aarch64|i386|amd64" \
     io.hass.type="addon" \
-    io.hass.version="1.5.2"
+    io.hass.version="1.5.3"
 
 CMD [ "/run.sh" ]
