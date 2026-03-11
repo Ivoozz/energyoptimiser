@@ -1,17 +1,14 @@
 # Changelog
 
-## v2026.3.29
-- **Reliability**: Implemented a "Dummy Data Fallback" for simulations. If the API fails to fetch prices during a test run, the system now injects a synthetic price curve so you can still verify the UI and logic.
-- **Robustness**: Improved the EnergyZero price fetching logic with a wider date range and more resilient date parsing to handle different API response formats.
+## v2026.3.30
+- **Validation**: Removed all dummy/placeholder data from the simulation and optimization logic. The system now requires and uses only real-time data from external APIs.
+- **Transparency**: Added an "API Status" indicator bar to the dashboard. You can now see at a glance if EnergyZero (Prices), Meteoserver (Weather), and Home Assistant (SOC) are responding correctly (Green = Success, Red = Fail).
+- **Diagnostics**: Implemented detailed error reporting in the backend to identify exactly why an API fetch might fail.
 - **Maintenance**: Synchronized versioning across all components.
+
+## v2026.3.29
+- Reliability: Implemented a "Dummy Data Fallback" for simulations (Reverted in v2026.3.30).
+- Robustness: Improved EnergyZero price fetching date ranges.
 
 ## v2026.3.28
 - Feature: Added Minimum and Maximum Battery SOC limits.
-- Logic: The optimization engine now respects these limits when calculating program targets.
-- UI: Added dedicated input fields for SOC limits in the System tab.
-
-## v2026.3.27
-- UI/UX: Re-designed the application icon and logo with a "Cyber-Tech" aesthetic.
-
-## v2026.3.26
-- Bugfix: Resolved the issue where the "Simulatie Run" did not update the dashboard.

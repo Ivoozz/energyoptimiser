@@ -15,7 +15,7 @@ from typing import Optional, List, Dict, Any
 
 # --- Configuration & Defaults ---
 CONFIG_PATH = "/data/config.json"
-VERSION = "v2026.3.29"
+VERSION = "v2026.3.30"
 
 # Professional Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -406,30 +406,21 @@ class Optimizer:
                 logger.error(f"Error syncing slot {i}: {e}")
 
     async def run_cycle(self, dry_run: bool = False):
-        """Perform one full optimization cycle."""
+        """Perform one full optimization cycle using REAL data only."""
+        logger.info(f"Starting optimization cycle (Dry Run: {dry_run})")
+        
         await self.fetch_soc_from_ha()
         await self.fetch_prices()
         await self.fetch_weather()
         
-        # If dry run and no real prices, inject dummy data so the user sees the logic in the graph
-        if dry_run and not self.prices:
-            logger.info("Simulation mode: No price data fetched. Injecting dummy data for UI testing.")
-            self.prices = self._get_dummy_prices()
+        if not self.prices:
+            logger.error("Cycle aborted: No real price data available from EnergyZero.")
+            return False
             
         self.calculate_forecast()
         await self.sync_to_ha(dry_run=dry_run)
         gc.collect()
-
-    def _get_dummy_prices(self) -> List[Dict[str, Any]]:
-        """Generate a synthetic 48h price curve for testing the UI."""
-        now = datetime.now(pytz.UTC).replace(minute=0, second=0, microsecond=0)
-        dummy = []
-        for i in range(48):
-            ts = now - timedelta(hours=24) + timedelta(hours=i)
-            # Create a 24h sine wave for prices
-            val = 0.25 + 0.15 * math.sin((i - 6) * math.pi / 12)
-            dummy.append({"timestamp": ts, "value": round(val, 4)})
-        return dummy
+        return True
 
     async def main_loop(self):
         """Continuous background task."""
