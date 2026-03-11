@@ -15,7 +15,7 @@ from typing import Optional, List, Dict, Any
 
 # --- Configuration & Defaults ---
 CONFIG_PATH = "/data/config.json"
-VERSION = "v2026.3.26"
+VERSION = "v2026.3.27"
 
 # Professional Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
