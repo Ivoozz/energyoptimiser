@@ -11,6 +11,8 @@
         .input-field { background: #0f172a; border: 1px solid #475569; border-radius: 0.5rem; padding: 0.5rem; width: 100%; color: white; font-size: 0.875rem; }
         .btn-primary { background: #10b981; color: white; padding: 0.75rem; border-radius: 0.5rem; font-weight: bold; width: 100%; transition: 0.2s; border: none; cursor: pointer; }
         .btn-primary:hover { background: #059669; }
+        .btn-secondary { background: #334155; color: white; padding: 0.75rem; border-radius: 0.5rem; font-weight: bold; width: 100%; transition: 0.2s; border: none; cursor: pointer; }
+        .btn-secondary:hover { background: #475569; }
         .badge { padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: bold; }
         .help-text { color: #94a3b8; font-size: 0.75rem; margin-top: 0.25rem; line-height: 1.2; }
         .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
@@ -21,7 +23,7 @@
     <nav class="bg-slate-800 p-4 border-b border-slate-700 sticky top-0 z-50">
         <div class="container mx-auto flex justify-between items-center">
             <h1 class="text-xl font-bold flex items-center gap-2">
-                <span class="text-emerald-400 text-2xl">⚡</span> EnergyOptimiser <span class="text-xs font-normal text-slate-400 bg-slate-700 px-2 py-1 rounded ml-2">v2026.3.3</span>
+                <span class="text-emerald-400 text-2xl">⚡</span> EnergyOptimiser <span class="text-xs font-normal text-slate-400 bg-slate-700 px-2 py-1 rounded ml-2">v2026.3.6</span>
             </h1>
             <div class="flex gap-6">
                 <button onclick="showPage('dashboard')" class="text-slate-300 hover:text-emerald-400 font-medium">Dashboard</button>
@@ -33,30 +35,26 @@
     <main class="container mx-auto p-6 max-w-6xl">
         <!-- Dashboard Page -->
         <div id="page-dashboard" class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div class="card">
                     <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Status</p>
-                    <h2 id="status-enabled" class="text-2xl font-bold italic text-rose-400">Laden...</h2>
+                    <h2 id="status-enabled" class="text-xl font-bold italic text-rose-400">Laden...</h2>
                 </div>
                 <div class="card">
-                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Zon-opbrengst vandaag (est.)</p>
-                    <h2 id="status-solar" class="text-2xl font-bold text-yellow-400">0.0 kWh</h2>
+                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Huidige SOC</p>
+                    <h2 id="status-soc" class="text-xl font-bold text-emerald-400">--%</h2>
                 </div>
                 <div class="card">
-                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Laatste Update</p>
-                    <h2 id="status-update" class="text-2xl font-bold">--:--</h2>
+                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Zon-opbrengst (est.)</p>
+                    <h2 id="status-solar" class="text-xl font-bold text-yellow-400">0.0 kWh</h2>
+                </div>
+                <div class="card">
+                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Update</p>
+                    <h2 id="status-update" class="text-xl font-bold">--:--</h2>
                 </div>
             </div>
 
             <div class="card">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-lg font-semibold">Prijs & Zon Voorspelling</h3>
-                    <div class="flex gap-4 text-[10px]">
-                        <span class="flex items-center gap-1"><span class="w-2 h-2 bg-emerald-500 rounded"></span> Laden</span>
-                        <span class="flex items-center gap-1"><span class="w-2 h-2 bg-rose-500 rounded"></span> Ontladen</span>
-                        <span class="flex items-center gap-1"><span class="w-2 h-2 bg-yellow-400 rounded"></span> Zon-opbrengst</span>
-                    </div>
-                </div>
                 <div class="h-[400px] relative">
                     <canvas id="mainChart"></canvas>
                 </div>
@@ -64,10 +62,10 @@
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="card overflow-hidden">
-                    <h3 class="text-lg font-bold mb-4">Uurlijkse Planning</h3>
-                    <div class="overflow-x-auto">
+                    <h3 class="text-lg font-bold mb-4 border-b border-slate-700 pb-2">Uurlijkse Planning</h3>
+                    <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
                         <table class="w-full text-left text-sm">
-                            <thead>
+                            <thead class="sticky top-0 bg-slate-800">
                                 <tr class="border-b border-slate-700">
                                     <th class="py-2">Tijd</th>
                                     <th class="py-2">Prijs</th>
@@ -80,7 +78,7 @@
                     </div>
                 </div>
                 <div class="card">
-                    <h3 class="text-lg font-bold mb-4">Omvormer Registers</h3>
+                    <h3 class="text-lg font-bold mb-4 border-b border-slate-700 pb-2">Omvormer Registers</h3>
                     <div id="slots-container" class="space-y-3"></div>
                 </div>
             </div>
@@ -88,132 +86,93 @@
 
         <!-- Config Page -->
         <div id="page-config" class="hidden space-y-6 animate-fade-in">
+            <div class="flex gap-4 mb-6">
+                <button onclick="testRun()" id="testBtn" class="btn-secondary flex-1">🧪 Test Optimalisatie (Dry Run)</button>
+                <button type="submit" form="configForm" class="btn-primary flex-1">💾 Alle Instellingen Opslaan</button>
+            </div>
+
             <form id="configForm" class="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-20">
                 <div class="space-y-6">
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">⚙️ Systeembeheer</h3>
+                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">⚙️ Systeem</h3>
                         <div class="space-y-4">
                             <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                                <div class="max-w-[70%]">
-                                    <p class="font-bold">Automatisering Activeren</p>
-                                    <p class="help-text">Zet de hoofdschakelaar aan om het algoritme commando's naar de omvormer te laten sturen. Uitvinken stopt alle automatische acties.</p>
-                                </div>
+                                <div><p class="font-bold">Automatisering Activeren</p></div>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" name="enabled" class="sr-only peer">
                                     <div class="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                 </label>
                             </div>
                             <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-300 mb-1">Nordpool Regio</label>
-                                    <input type="text" name="nordpool_area" class="input-field" placeholder="bijv. NL">
-                                    <p class="help-text">Marktgebied (NL voor Nederland, BE voor België).</p>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-300 mb-1">Valuta</label>
-                                    <input type="text" name="currency" class="input-field" placeholder="EUR">
-                                    <p class="help-text">De valuta waarin prijzen worden getoond.</p>
-                                </div>
+                                <div><label class="block text-xs font-bold text-slate-300">Regio</label><input type="text" name="nordpool_area" class="input-field"><p class="help-text">Marktgebied (NL/BE).</p></div>
+                                <div><label class="block text-xs font-bold text-slate-300">Valuta</label><input type="text" name="currency" class="input-field"></div>
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-300 mb-1">Strategie</label>
+                                <label class="block text-xs font-bold text-slate-300">Strategie</label>
                                 <select name="strategy" class="input-field">
                                     <option value="Maximize Profit">Winstmaximalisatie (Arbitrage)</option>
                                     <option value="Maximize Self-Consumption">Eigen Verbruik Maximaliseren</option>
                                 </select>
-                                <p class="help-text">Profit: laden bij lage prijs, ontladen bij hoge prijs. Self-Consumption: houd accu vol voor eigen gebruik.</p>
                             </div>
                         </div>
                     </div>
 
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-yellow-400 border-b border-slate-700 pb-2">☀️ Zonnepanelen (Volledige Inrichting)</h3>
+                        <h3 class="text-lg font-bold mb-4 text-yellow-400 border-b border-slate-700 pb-2">☀️ Zonnepanelen Sets</h3>
                         <div class="space-y-4">
                             <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                                <div class="max-w-[70%]">
-                                    <p class="font-bold">Inclusief Zon-voorspelling</p>
-                                    <p class="help-text">Gebruikt Meteoserver data om de verwachte zonne-opbrengst te berekenen en het laden vanaf het net hierop aan te passen.</p>
-                                </div>
+                                <div><p class="font-bold">Zon-voorspelling inschakelen</p></div>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" name="solar_enabled" class="sr-only peer">
                                     <div class="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-yellow-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                 </label>
                             </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-300 mb-1">Totaal kWp</label>
-                                    <input type="number" step="0.1" name="solar_kwp" class="input-field">
-                                    <p class="help-text">Het totale piekvermogen van je panelen (bijv. 4.2 voor 4200Wp).</p>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-300 mb-1">Helling (Tilt °)</label>
-                                    <input type="number" name="solar_tilt" class="input-field">
-                                    <p class="help-text">De hoek van je panelen (0° = plat, 35° = standaard schuin dak).</p>
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-300 mb-1">Orientatie (Azimuth °)</label>
-                                    <input type="number" name="solar_azimuth" class="input-field">
-                                    <p class="help-text">Windrichting: 180 = Zuid, 90 = Oost, 270 = West.</p>
-                                </div>
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-300 mb-1">Systeem Efficiëntie</label>
-                                    <input type="number" step="0.05" name="solar_efficiency" class="input-field">
-                                    <p class="help-text">Verliezen (omvormer, bekabeling). Standaard is 0.85 (85%).</p>
-                                </div>
-                            </div>
+                            <div id="solar-arrays-container" class="space-y-4"></div>
+                            <button type="button" onclick="addSolarArray()" class="text-xs bg-slate-700 hover:bg-slate-600 p-2 rounded w-full">+ Voeg set panelen toe (bijv. achterkant)</button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <h3 class="text-lg font-bold mb-4 text-blue-400 border-b border-slate-700 pb-2">🔋 Batterij & Drempels</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="block text-xs font-bold text-slate-300">Capaciteit (kWh)</label><input type="number" step="0.1" name="battery_capacity_kwh" class="input-field"></div>
+                            <div><label class="block text-xs font-bold text-slate-300">Max Laden (kW)</label><input type="number" step="0.1" name="max_charge_rate_kw" class="input-field"></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mt-4">
+                            <div><label class="block text-xs font-bold text-slate-300">Laad Drempel %</label><input type="number" name="charge_threshold_pct" class="input-field"></div>
+                            <div><label class="block text-xs font-bold text-slate-300">Ontlaad Drempel %</label><input type="number" name="discharge_threshold_pct" class="input-field"></div>
                         </div>
                     </div>
                 </div>
 
                 <div class="space-y-6">
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">📊 Optimalisatie Drempels</h3>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-bold text-slate-300 mb-1">Laad Drempel %</label>
-                                <input type="number" name="charge_threshold_pct" class="input-field">
-                                <p class="help-text">Laad vanaf net als de prijs onder dit % van het daggemiddelde komt.</p>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-slate-300 mb-1">Ontlaad Drempel %</label>
-                                <input type="number" name="discharge_threshold_pct" class="input-field">
-                                <p class="help-text">Laat accu ontladen als de prijs boven dit % van het daggemiddelde komt.</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">☁️ Weerdata (Meteoserver)</h3>
+                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">🔌 Solarman Registers (Entity IDs)</h3>
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-xs font-bold text-slate-300 mb-1">API Sleutel</label>
-                                <input type="password" name="meteoserver_key" class="input-field" placeholder="Je API Key">
-                                <p class="help-text">Vraag je sleutel aan op Meteoserver.nl voor KNMI-data.</p>
+                                <label class="block text-xs font-bold text-slate-300">Batterij SOC % Sensor</label>
+                                <input type="text" name="solarman_battery_soc" class="input-field text-xs" placeholder="sensor.solarman_battery_soc">
+                                <p class="help-text">Het systeem gebruikt enkel percentages (geen voltage).</p>
                             </div>
-                            <div>
-                                <label class="block text-xs font-bold text-slate-300 mb-1">Stad / Locatie</label>
-                                <input type="text" name="meteoserver_location" class="input-field">
-                                <p class="help-text">Naam van de dichtstbijzijnde stad voor lokale voorspelling.</p>
-                            </div>
+                            
+                            <p class="text-[10px] font-bold text-slate-500 uppercase">Programma Tijd Registers (1-6)</p>
+                            <div id="prog-times-inputs" class="grid grid-cols-2 gap-2"></div>
+
+                            <p class="text-[10px] font-bold text-slate-500 uppercase">Programma SOC Registers (1-6)</p>
+                            <div id="prog-socs-inputs" class="grid grid-cols-2 gap-2"></div>
+
+                            <p class="text-[10px] font-bold text-slate-500 uppercase">Programma Grid-Charge Switches (1-6)</p>
+                            <div id="prog-grid-inputs" class="grid grid-cols-2 gap-2"></div>
                         </div>
                     </div>
 
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">🔋 Solarman Registers</h3>
-                        <div class="space-y-3">
-                            <div>
-                                <label class="block text-xs font-bold text-slate-300 mb-1">Batterij SOC Sensor</label>
-                                <input type="text" name="solarman_battery_soc" class="input-field text-xs">
-                                <p class="help-text">De entiteit-ID van je accu percentage (bijv. sensor.solarman_battery_soc).</p>
-                            </div>
-                            <p class="text-[10px] font-bold text-slate-500 uppercase mt-4">Tijd Registers (Prog 1 t/m 6 Starttijd)</p>
-                            <div id="prog-times-inputs" class="grid grid-cols-2 gap-2"></div>
-                            <p class="help-text italic">Let op: vul hier de volledige entiteit-IDs van de 6 programma starttijden in.</p>
+                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">☁️ Meteoserver</h3>
+                        <div class="space-y-4">
+                            <div><label class="block text-xs font-bold text-slate-300">API Sleutel</label><input type="password" name="meteoserver_key" class="input-field"></div>
+                            <div><label class="block text-xs font-bold text-slate-300">Stad / Locatie</label><input type="text" name="meteoserver_location" class="input-field"></div>
                         </div>
                     </div>
-                    <button type="submit" class="btn-primary shadow-xl shadow-emerald-900/40 sticky bottom-4">💾 Alle Instellingen Opslaan</button>
                 </div>
             </form>
         </div>
@@ -221,6 +180,7 @@
 
     <script>
         let chart = null;
+        let configData = {};
         const apiBase = window.location.pathname.replace(/\/$/, "");
 
         function showPage(id) {
@@ -233,38 +193,87 @@
             try {
                 const r = await fetch(apiBase + '/api/status');
                 const data = await r.json();
+                configData = data.config;
                 
-                const enabledEl = document.getElementById('status-enabled');
-                enabledEl.innerText = data.config.enabled ? 'SYSTEEM ACTIEF' : 'STANDBY (UIT)';
-                enabledEl.className = 'text-2xl font-bold ' + (data.config.enabled ? 'text-emerald-400' : 'text-rose-400');
+                document.getElementById('status-enabled').innerText = configData.enabled ? 'SYSTEEM ACTIEF' : 'STANDBY (UIT)';
+                document.getElementById('status-enabled').className = 'text-xl font-bold ' + (configData.enabled ? 'text-emerald-400' : 'text-rose-400');
+                document.getElementById('status-soc').innerText = data.current_soc + '%';
                 
                 const totalSolar = data.forecast.reduce((a, b) => a + b.solar_yield, 0);
                 document.getElementById('status-solar').innerText = totalSolar.toFixed(1) + ' kWh';
-                
                 document.getElementById('status-update').innerText = data.last_update ? new Date(data.last_update).toLocaleTimeString() : '--:--';
                 
                 updateForecastTable(data.forecast);
                 updateSlots(data.inverter_slots);
                 updateChart(data.forecast);
-
-                // Form populate
-                const form = document.getElementById('configForm');
-                for (let k in data.config) {
-                    if (form[k]) {
-                        if (form[k].type === 'checkbox') form[k].checked = data.config[k];
-                        else form[k].value = data.config[k];
-                    }
-                }
-
-                if (document.getElementById('prog-times-inputs').children.length === 0) {
-                    data.config.solarman_prog_times.forEach((val, i) => {
-                        const input = document.createElement('input');
-                        input.type = 'text'; input.value = val; input.className = 'input-field text-[10px]';
-                        input.dataset.idx = i;
-                        document.getElementById('prog-times-inputs').appendChild(input);
-                    });
-                }
+                populateForm(configData);
             } catch (e) { console.error("Update fail", e); }
+        }
+
+        function populateForm(config) {
+            const form = document.getElementById('configForm');
+            for (let k in config) {
+                if (form[k] && k !== 'solar_arrays') {
+                    if (form[k].type === 'checkbox') form[k].checked = config[k];
+                    else form[k].value = config[k];
+                }
+            }
+
+            // Entity IDs
+            renderListInputs('prog-times-inputs', config.solarman_prog_times);
+            renderListInputs('prog-socs-inputs', config.solarman_prog_socs);
+            renderListInputs('prog-grid-inputs', config.solarman_prog_grid_charges);
+
+            // Solar Arrays
+            const container = document.getElementById('solar-arrays-container');
+            container.innerHTML = '';
+            config.solar_arrays.forEach((array, i) => {
+                const div = document.createElement('div');
+                div.className = 'p-3 bg-slate-900/50 rounded border border-slate-700 space-y-2 relative';
+                div.innerHTML = `
+                    <button type="button" onclick="removeSolarArray(${i})" class="absolute top-2 right-2 text-rose-500 text-xs">Verwijder</button>
+                    <input type="text" value="${array.name}" class="input-field text-xs font-bold mb-2 array-name" placeholder="Naam (bijv. Voorzijde)">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div><label class="text-[10px] text-slate-500">kWp</label><input type="number" step="0.1" value="${array.kwp}" class="input-field text-xs array-kwp"></div>
+                        <div><label class="text-[10px] text-slate-500">Tilt °</label><input type="number" value="${array.tilt}" class="input-field text-xs array-tilt"></div>
+                        <div><label class="text-[10px] text-slate-500">Azimuth °</label><input type="number" value="${array.azimuth}" class="input-field text-xs array-azimuth"></div>
+                        <div><label class="text-[10px] text-slate-500">Eff. (PR)</label><input type="number" step="0.01" value="${array.efficiency}" class="input-field text-xs array-eff"></div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function renderListInputs(id, list) {
+            const container = document.getElementById(id);
+            if (container.children.length > 0) return;
+            list.forEach((val, i) => {
+                const input = document.createElement('input');
+                input.type = 'text'; input.value = val; input.className = 'input-field text-[10px]';
+                container.appendChild(input);
+            });
+        }
+
+        function addSolarArray() {
+            configData.solar_arrays.push({name: "Nieuwe Set", kwp: 1.0, tilt: 35, azimuth: 180, efficiency: 0.85});
+            populateForm(configData);
+        }
+
+        function removeSolarArray(i) {
+            configData.solar_arrays.splice(i, 1);
+            populateForm(configData);
+        }
+
+        async function testRun() {
+            const btn = document.getElementById('testBtn');
+            btn.innerText = '⏳ Bezig met berekenen...';
+            try {
+                const r = await fetch(apiBase + '/api/test_run', { method: 'POST' });
+                const data = await r.json();
+                alert('Test succesvol! Bekijk het dashboard voor de berekende planning (er is niets naar de omvormer gestuurd).');
+                loadData();
+            } catch (e) { alert('Test mislukt: ' + e); }
+            btn.innerText = '🧪 Test Optimalisatie (Dry Run)';
         }
 
         function updateForecastTable(forecast) {
@@ -273,7 +282,7 @@
                 <tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
                     <td class="py-2 font-mono">${new Date(f.time).getHours()}:00</td>
                     <td class="py-2">€${f.price.toFixed(3)}</td>
-                    <td class="py-2 text-yellow-400 font-bold">${f.solar_yield.toFixed(2)} <span class="text-[8px] text-slate-500">kW</span></td>
+                    <td class="py-2 text-yellow-400 font-bold">${f.solar_yield.toFixed(2)}</td>
                     <td class="py-2"><span class="badge ${f.action==='CHARGE'?'bg-emerald-500/20 text-emerald-400':(f.action==='DISCHARGE'?'bg-rose-500/20 text-rose-400':'text-slate-500')}">${f.action}</span></td>
                 </tr>
             `).join('');
@@ -283,7 +292,7 @@
             const container = document.getElementById('slots-container');
             container.innerHTML = slots.map((s, i) => `
                 <div class="flex items-center justify-between p-2 bg-slate-800/50 rounded border border-slate-700 text-xs">
-                    <span class="font-bold text-slate-400">Prog ${i+1}</span>
+                    <span class="font-bold text-slate-400">Slot ${i+1}</span>
                     <span class="font-mono text-emerald-400">${s.start}:00</span>
                     <span class="badge ${s.action==='CHARGE'?'bg-emerald-500/20 text-emerald-400':(s.action==='DISCHARGE'?'bg-rose-500/20 text-rose-400':'text-slate-500')}">${s.action}</span>
                 </div>
@@ -298,34 +307,11 @@
                 data: {
                     labels: forecast.map(f => new Date(f.time).getHours() + ':00'),
                     datasets: [
-                        {
-                            label: 'Prijs (€)',
-                            type: 'bar',
-                            data: forecast.map(f => f.price),
-                            backgroundColor: forecast.map(f => f.action==='CHARGE'?'rgba(16, 185, 129, 0.6)':(f.action==='DISCHARGE'?'rgba(244, 63, 94, 0.6)':'rgba(71, 85, 105, 0.2)')),
-                            borderRadius: 5,
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: 'Zon (kW)',
-                            type: 'line',
-                            data: forecast.map(f => f.solar_yield),
-                            borderColor: '#fbbf24',
-                            backgroundColor: 'rgba(251, 191, 36, 0.1)',
-                            fill: true,
-                            tension: 0.4,
-                            yAxisID: 'y1'
-                        }
+                        { label: 'Prijs', type: 'bar', data: forecast.map(f => f.price), backgroundColor: forecast.map(f => f.action==='CHARGE'?'rgba(16, 185, 129, 0.6)':(f.action==='DISCHARGE'?'rgba(244, 63, 94, 0.6)':'rgba(71, 85, 105, 0.2)')), borderRadius: 5, yAxisID: 'y' },
+                        { label: 'Zon (kW)', type: 'line', data: forecast.map(f => f.solar_yield), borderColor: '#fbbf24', backgroundColor: 'rgba(251, 191, 36, 0.1)', fill: true, tension: 0.4, yAxisID: 'y1' }
                     ]
                 },
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    scales: { 
-                        y: { position: 'left', grid: { color: '#334155' } },
-                        y1: { position: 'right', grid: { display: false }, min: 0 }
-                    } 
-                }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { position: 'left', grid: { color: '#334155' } }, y1: { position: 'right', grid: { display: false }, min: 0 } } }
             });
         }
 
@@ -335,17 +321,26 @@
             const config = {};
             formData.forEach((v, k) => {
                 if (k === 'enabled' || k === 'solar_enabled') config[k] = true;
-                else if (['charge_threshold_pct', 'discharge_threshold_pct', 'battery_capacity_kwh', 'max_charge_rate_kw', 'solar_kwp', 'solar_tilt', 'solar_azimuth', 'solar_efficiency'].includes(k)) config[k] = parseFloat(v);
+                else if (['charge_threshold_pct', 'discharge_threshold_pct', 'battery_capacity_kwh', 'max_charge_rate_kw'].includes(k)) config[k] = parseFloat(v);
                 else config[k] = v;
             });
             if (!config.enabled) config.enabled = false;
             if (!config.solar_enabled) config.solar_enabled = false;
             
-            const timeInputs = document.getElementById('prog-times-inputs').querySelectorAll('input');
-            config.solarman_prog_times = Array.from(timeInputs).map(i => i.value);
+            config.solarman_prog_times = Array.from(document.getElementById('prog-times-inputs').querySelectorAll('input')).map(i => i.value);
+            config.solarman_prog_socs = Array.from(document.getElementById('prog-socs-inputs').querySelectorAll('input')).map(i => i.value);
+            config.solarman_prog_grid_charges = Array.from(document.getElementById('prog-grid-inputs').querySelectorAll('input')).map(i => i.value);
+
+            config.solar_arrays = Array.from(document.getElementById('solar-arrays-container').children).map(div => ({
+                name: div.querySelector('.array-name').value,
+                kwp: parseFloat(div.querySelector('.array-kwp').value),
+                tilt: parseFloat(div.querySelector('.array-tilt').value),
+                azimuth: parseFloat(div.querySelector('.array-azimuth').value),
+                efficiency: parseFloat(div.querySelector('.array-eff').value)
+            }));
 
             await fetch(apiBase + '/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
-            alert('Instellingen succesvol opgeslagen! Het systeem herrekent de planning direct.');
+            alert('Instellingen succesvol opgeslagen!');
             loadData();
         };
 

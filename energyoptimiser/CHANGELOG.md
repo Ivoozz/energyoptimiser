@@ -1,18 +1,14 @@
 # Changelog
 
+## v2026.3.6
+- **Feature**: Support for **Multiple Solar Arrays**. You can now add multiple sets of panels (e.g., front and back of the house) with individual tilt and azimuth settings.
+- **Feature**: Integrated **Test Optimalisatie (Dry Run)** button. Test your configuration and see the planned actions on the dashboard without sending any commands to your inverter.
+- **Feature**: Full control over **Program SOC and Grid-Charge registers**. All 18 Solarman registers (6x Time, 6x SOC, 6x Grid Charge) are now configurable in the UI.
+- **Algorithm**: The decision-making engine now explicitly uses the summed yield of all solar arrays to intelligently suppress grid-charging if the sun can fill the battery.
+- **Safety**: Strictly uses **percentages (SOC)** for all battery calculations; voltage-based logic is explicitly avoided for better compatibility and safety.
+- **UI**: Completely redesigned settings page with dynamic array management and extensive help-texts.
+
 ## v2026.3.5
-- **Optimization**: Fully optimized for **Raspberry Pi** Home Assistant installations.
-- **Optimization**: Migrated to a **Multi-Stage Docker build** to reduce image size and startup time.
-- **Optimization**: Reduced memory footprint by limiting Uvicorn to a single worker and disabling unnecessary docs.
-- **Optimization**: Integrated persistent **aiohttp session reuse** to minimize CPU overhead and network latency.
-- **Reliability**: Added manual garbage collection hints to prevent memory creep on low-RAM devices.
-- **Reliability**: Disabled verbose access logging to protect SD cards from excessive I/O writes.
-
-## v2026.3.4
-- Feature: Integrated Solar Panel yield actively into the decision-making algorithm.
-- Feature: Automatic Grid-Charge Suppression based on solar forecasts.
-- Feature: Real-time SOC Monitoring from Home Assistant.
-
-## v2026.3.3
-- Extensive descriptions and help-texts added directly into the Web UI.
-- Polished settings dashboard.
+- Optimization for Raspberry Pi.
+- Multi-Stage Docker build.
+- Reduced memory footprint and SD card protection.

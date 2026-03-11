@@ -14,7 +14,7 @@ from datetime import datetime, time, timedelta
 import pytz
 from typing import Optional, List, Dict
 
-# High-Performance Logging for Raspberry Pi
+# Professional Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL),
@@ -23,7 +23,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("energy-optimiser")
 
-app = FastAPI(docs_url=None, redoc_url=None) # Disable docs to save memory
+app = FastAPI(docs_url=None, redoc_url=None)
 
 CONFIG_PATH = "/data/config.json"
 
@@ -38,16 +38,25 @@ DEFAULT_CONFIG = {
     "max_charge_rate_kw": 2.5,
     "update_interval_minutes": 60,
     "solarman_battery_soc": "sensor.solarman_battery_soc",
-    "solarman_prog_times": ["number.solarman_prog1_time", "number.solarman_prog2_time", "number.solarman_prog3_time", "number.solarman_prog4_time", "number.solarman_prog5_time", "number.solarman_prog6_time"],
-    "solarman_prog_socs": ["number.solarman_prog1_soc", "number.solarman_prog2_soc", "number.solarman_prog3_soc", "number.solarman_prog4_soc", "number.solarman_prog5_soc", "number.solarman_prog6_soc"],
-    "solarman_prog_grid_charges": ["switch.solarman_prog1_grid_charge", "switch.solarman_prog2_grid_charge", "switch.solarman_prog3_grid_charge", "switch.solarman_prog4_grid_charge", "switch.solarman_prog5_grid_charge", "switch.solarman_prog6_grid_charge"],
+    "solarman_prog_times": [
+        "number.solarman_prog1_time", "number.solarman_prog2_time", "number.solarman_prog3_time",
+        "number.solarman_prog4_time", "number.solarman_prog5_time", "number.solarman_prog6_time"
+    ],
+    "solarman_prog_socs": [
+        "number.solarman_prog1_soc", "number.solarman_prog2_soc", "number.solarman_prog3_soc",
+        "number.solarman_prog4_soc", "number.solarman_prog5_soc", "number.solarman_prog6_soc"
+    ],
+    "solarman_prog_grid_charges": [
+        "switch.solarman_prog1_grid_charge", "switch.solarman_prog2_grid_charge", "switch.solarman_prog3_grid_charge",
+        "switch.solarman_prog4_grid_charge", "switch.solarman_prog5_grid_charge", "switch.solarman_prog6_grid_charge"
+    ],
     "meteoserver_key": "",
     "meteoserver_location": "Utrecht",
     "solar_enabled": False,
-    "solar_kwp": 4.0,
-    "solar_tilt": 35,
-    "solar_azimuth": 180,
-    "solar_efficiency": 0.85
+    "solar_arrays": [
+        {"name": "Zuidkant", "kwp": 4.0, "tilt": 35, "azimuth": 180, "efficiency": 0.85},
+        {"name": "Noordkant", "kwp": 2.0, "tilt": 35, "azimuth": 0, "efficiency": 0.85}
+    ]
 }
 
 @app.middleware("http")
@@ -65,7 +74,7 @@ class Optimizer:
         self.forecast = []
         self.inverter_slots = []
         self.last_update = None
-        self.timezone = os.getenv("TZ", "UTC")
+        self.timezone = os.getenv("TZ", "Europe/Amsterdam")
         self.current_soc = 50.0
         self.session: Optional[aiohttp.ClientSession] = None
 
@@ -73,7 +82,11 @@ class Optimizer:
         if os.path.exists(CONFIG_PATH):
             try:
                 with open(CONFIG_PATH, "r") as f:
-                    return {**DEFAULT_CONFIG, **json.load(f)}
+                    data = json.load(f)
+                    # Migrate old solar settings to array if needed
+                    if "solar_kwp" in data:
+                        data["solar_arrays"] = [{"name": "Default", "kwp": data.pop("solar_kwp"), "tilt": data.pop("solar_tilt", 35), "azimuth": data.pop("solar_azimuth", 180), "efficiency": data.pop("solar_efficiency", 0.85)}]
+                    return {**DEFAULT_CONFIG, **data}
             except Exception as e:
                 logger.error(f"Config load failed: {e}")
         return DEFAULT_CONFIG
@@ -83,7 +96,7 @@ class Optimizer:
         try:
             with open(CONFIG_PATH, "w") as f:
                 json.dump(new_config, f, indent=2)
-            logger.info("Config updated.")
+            logger.info("Config saved.")
         except Exception as e:
             logger.error(f"Config save failed: {e}")
 
@@ -99,8 +112,6 @@ class Optimizer:
         headers = {"Authorization": f"Bearer {token}"}
         url = f"http://supervisor/core/api/states/{entity_id}"
         try:
-            # Using requests here for simplicity as it's a small call, 
-            # but aiohttp would be better. For now keep as is to avoid breaking.
             r = requests.get(url, headers=headers, timeout=5)
             if r.status_code == 200:
                 self.current_soc = float(r.json().get("state", 50.0))
@@ -113,7 +124,6 @@ class Optimizer:
             area = self.config.get("nordpool_area", "NL")
             curr = getattr(Currency, self.config.get("currency", "EUR"), Currency.EUR)
             self.prices = await client.async_get_delivery_period_prices(currency=curr, area=area)
-            logger.info(f"Prices fetched for {area}")
         except Exception as e:
             logger.error(f"Nordpool Error: {e}")
 
@@ -128,18 +138,21 @@ class Optimizer:
                 if response.status == 200:
                     data = await response.json()
                     self.weather = data.get("data", [])
-                    logger.info(f"Weather fetched for {loc}")
         except Exception as e:
             logger.error(f"Weather Error: {e}")
 
     def calculate_solar_yield(self, radiation_wm2, hour):
         if not self.config.get("solar_enabled"): return 0
-        kwp = self.config.get("solar_kwp", 4.0)
-        tilt = math.radians(self.config.get("solar_tilt", 35))
-        pr = self.config.get("solar_efficiency", 0.85)
-        time_factor = max(0, 1 - abs(hour - 12) / 8) 
-        yield_kw = (radiation_wm2 / 1000.0) * kwp * pr * math.cos(tilt) * time_factor
-        return max(0, yield_kw)
+        total_yield = 0
+        for array in self.config.get("solar_arrays", []):
+            kwp = array.get("kwp", 0)
+            tilt = math.radians(array.get("tilt", 35))
+            # Azimuth calculation simplified: South is 180
+            azimuth_factor = math.cos(math.radians(array.get("azimuth", 180) - 180))
+            pr = array.get("efficiency", 0.85)
+            time_factor = max(0, 1 - abs(hour - 12) / 8) 
+            total_yield += (radiation_wm2 / 1000.0) * kwp * pr * math.cos(tilt) * time_factor * max(0.1, azimuth_factor)
+        return max(0, total_yield)
 
     def calculate_forecast(self):
         if not self.prices: return
@@ -153,7 +166,6 @@ class Optimizer:
         tz = pytz.timezone(self.timezone)
         weather_map = {w['tijd'].split(' ')[1][:2]: w for w in self.weather} if self.weather else {}
         
-        # Solar estimation
         total_expected_solar_kwh = 0
         temp_data = []
         for p in self.prices[:24]:
@@ -165,7 +177,7 @@ class Optimizer:
             temp_data.append({"lt": lt, "price": p.value, "solar_kw": solar_kw, "h_str": h_str})
 
         energy_needed = battery_cap * (1 - self.current_soc/100.0)
-        will_fill_from_sun = (total_expected_solar_kwh > (energy_needed * 1.2))
+        will_fill_from_sun = (total_expected_solar_kwh > (energy_needed * 1.1))
         
         new_forecast = []
         for item in temp_data:
@@ -174,7 +186,7 @@ class Optimizer:
             
             if strategy == "Maximize Profit":
                 if price <= (avg_p * charge_t):
-                    action = "CHARGE" if not will_fill_from_sun else "IDLE (WAIT FOR SUN)"
+                    action = "CHARGE" if not will_fill_from_sun else "WAIT FOR SUN"
                 elif price >= (avg_p * discharge_t):
                     action = "DISCHARGE"
             elif strategy == "Maximize Self-Consumption":
@@ -192,7 +204,6 @@ class Optimizer:
         self.forecast = new_forecast
         self.last_update = datetime.now()
         self.map_slots()
-        # Memory management hint
         gc.collect()
 
     def map_slots(self):
@@ -209,23 +220,32 @@ class Optimizer:
         while len(slots) < 6: slots.append({"start": (slots[-1]["start"]+1)%24, "action": "IDLE"})
         self.inverter_slots = slots
 
-    async def apply_to_ha(self):
+    async def apply_to_ha(self, dry_run=False):
         token = os.getenv("SUPERVISOR_TOKEN")
-        if not token or not self.inverter_slots or not self.config.get("enabled"): return
+        if not token or not self.inverter_slots: return
+        if not self.config.get("enabled") and not dry_run: return
+        
+        if dry_run: logger.info("DRY RUN: No actual changes will be sent to Home Assistant.")
+        
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         base_url = "http://supervisor/core/api/services"
         for i in range(min(len(self.inverter_slots), 6)):
             slot = self.inverter_slots[i]
             try:
-                requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_times"][i], "value": slot["start"]*100}, timeout=10)
+                t_val = slot["start"] * 100
                 soc = 100 if slot["action"] == "CHARGE" else 20
-                requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_socs"][i], "value": soc}, timeout=10)
                 svc = "switch/turn_on" if slot["action"] == "CHARGE" else "switch/turn_off"
-                requests.post(f"{base_url}/{svc}", headers=headers, json={"entity_id": self.config["solarman_prog_grid_charges"][i]}, timeout=10)
-            except: pass
+                
+                if not dry_run:
+                    requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_times"][i], "value": t_val}, timeout=10)
+                    requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_socs"][i], "value": soc}, timeout=10)
+                    requests.post(f"{base_url}/{svc}", headers=headers, json={"entity_id": self.config["solarman_prog_grid_charges"][i]}, timeout=10)
+                else:
+                    logger.info(f"Dry Run Slot {i+1}: Start={t_val}, SOC={soc}, Action={svc} for {self.config['solarman_prog_times'][i]}")
+            except Exception as e:
+                logger.error(f"Sync error: {e}")
 
     async def run_loop(self):
-        logger.info("Optimizer Loop Started.")
         while True:
             try:
                 if self.config.get("enabled"):
@@ -234,9 +254,7 @@ class Optimizer:
                     await self.fetch_weather()
                     self.calculate_forecast()
                     await self.apply_to_ha()
-                
-                wait_time = max(1, self.config.get("update_interval_minutes", 60)) * 60
-                await asyncio.sleep(wait_time)
+                await asyncio.sleep(self.config.get("update_interval_minutes", 60) * 60)
             except Exception as e:
                 logger.error(f"Loop error: {e}")
                 await asyncio.sleep(60)
@@ -244,13 +262,7 @@ class Optimizer:
 state = Optimizer()
 
 @app.on_event("startup")
-async def on_startup():
-    asyncio.create_task(state.run_loop())
-
-@app.on_event("shutdown")
-async def on_shutdown():
-    if state.session:
-        await state.session.close()
+async def on_startup(): asyncio.create_task(state.run_loop())
 
 @app.get("/api/status")
 async def get_status():
@@ -268,13 +280,19 @@ async def save_config(new_config: dict):
     state.save_config(new_config)
     return {"status": "ok"}
 
+@app.post("/api/test_run")
+async def test_run():
+    await state.get_current_soc()
+    await state.fetch_prices()
+    await state.fetch_weather()
+    state.calculate_forecast()
+    await state.apply_to_ha(dry_run=True)
+    return {"status": "ok", "forecast": state.forecast, "slots": state.inverter_slots}
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
-    try:
-        with open("static/index.html", "r") as f: return f.read()
-    except: return HTMLResponse("<h1>UI Error</h1>", status_code=500)
+    with open("static/index.html", "r") as f: return f.read()
 
 if __name__ == "__main__":
     import uvicorn
-    # Use 1 worker for low RAM environments like Raspberry Pi
     uvicorn.run(app, host="0.0.0.0", port=8000, workers=1, access_log=False)
