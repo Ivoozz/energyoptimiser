@@ -15,7 +15,7 @@ from typing import Optional, List, Dict, Any
 
 # --- Configuration & Defaults ---
 CONFIG_PATH = "/data/config.json"
-VERSION = "v2026.3.28"
+VERSION = "v2026.3.29"
 
 # Professional Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -160,12 +160,13 @@ class Optimizer:
         """Fetch electricity prices from EnergyZero (NL)."""
         logger.info("Fetching EnergyZero prices...")
         now_local = datetime.now(self.timezone)
-        start_dt = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_dt = start_dt + timedelta(days=1, hours=23, minutes=59)
+        # Fetch from yesterday to tomorrow to ensure we have data for the sliding 24h window
+        start_dt = now_local - timedelta(days=1)
+        end_dt = now_local + timedelta(days=2)
         
         # EnergyZero expects UTC ISO format
-        start_utc = start_dt.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        end_utc = end_dt.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        start_utc = start_dt.astimezone(pytz.UTC).strftime("%Y-%m-%dT00:00:00.000Z")
+        end_utc = end_dt.astimezone(pytz.UTC).strftime("%Y-%m-%dT23:59:59.000Z")
         
         url = f"https://api.energyzero.nl/v1/energyprices?fromDate={start_utc}&tillDate={end_utc}&interval=4&usageType=1&inclBtw=true"
         
@@ -182,7 +183,10 @@ class Optimizer:
                     parsed_prices = []
                     for p in raw_prices:
                         try:
-                            dt = datetime.fromisoformat(p["readingDate"].replace('Z', '+00:00'))
+                            # Robust field access
+                            date_str = p.get("readingDate") or p.get("datetime")
+                            if not date_str: continue
+                            dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
                             parsed_prices.append({"timestamp": dt, "value": float(p["price"])})
                         except (KeyError, ValueError) as e:
                             logger.error(f"Price parsing error: {e}")
@@ -406,9 +410,26 @@ class Optimizer:
         await self.fetch_soc_from_ha()
         await self.fetch_prices()
         await self.fetch_weather()
+        
+        # If dry run and no real prices, inject dummy data so the user sees the logic in the graph
+        if dry_run and not self.prices:
+            logger.info("Simulation mode: No price data fetched. Injecting dummy data for UI testing.")
+            self.prices = self._get_dummy_prices()
+            
         self.calculate_forecast()
         await self.sync_to_ha(dry_run=dry_run)
         gc.collect()
+
+    def _get_dummy_prices(self) -> List[Dict[str, Any]]:
+        """Generate a synthetic 48h price curve for testing the UI."""
+        now = datetime.now(pytz.UTC).replace(minute=0, second=0, microsecond=0)
+        dummy = []
+        for i in range(48):
+            ts = now - timedelta(hours=24) + timedelta(hours=i)
+            # Create a 24h sine wave for prices
+            val = 0.25 + 0.15 * math.sin((i - 6) * math.pi / 12)
+            dummy.append({"timestamp": ts, "value": round(val, 4)})
+        return dummy
 
     async def main_loop(self):
         """Continuous background task."""
