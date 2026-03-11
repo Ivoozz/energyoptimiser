@@ -11,13 +11,15 @@
         .input-field { background: #0f172a; border: 1px solid #475569; border-radius: 0.5rem; padding: 0.5rem; width: 100%; color: white; }
         .btn-primary { background: #10b981; color: white; padding: 0.75rem; border-radius: 0.5rem; font-weight: bold; width: 100%; transition: 0.2s; }
         .btn-primary:hover { background: #059669; }
+        .badge { padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: bold; }
+        .badge-sun { background: #fef08a; color: #854d0e; }
     </style>
 </head>
 <body class="bg-slate-900 text-white font-sans min-h-screen">
     <nav class="bg-slate-800 p-4 border-b border-slate-700 sticky top-0 z-50">
         <div class="container mx-auto flex justify-between items-center">
             <h1 class="text-xl font-bold flex items-center gap-2">
-                <span class="text-emerald-400 text-2xl">⚡</span> EnergyOptimiser <span class="text-xs font-normal text-slate-400 bg-slate-700 px-2 py-1 rounded">v2026.3.0</span>
+                <span class="text-emerald-400 text-2xl">⚡</span> EnergyOptimiser <span class="text-xs font-normal text-slate-400 bg-slate-700 px-2 py-1 rounded">v2026.3.1</span>
             </h1>
             <div class="flex gap-6">
                 <button onclick="showPage('dashboard')" class="text-slate-300 hover:text-emerald-400 font-medium">Dashboard</button>
@@ -27,83 +29,90 @@
     </nav>
 
     <main class="container mx-auto p-6 max-w-6xl">
-        <!-- Dashboard Page -->
         <div id="page-dashboard" class="space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div class="card">
                     <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Systeem Status</p>
-                    <h2 id="status-enabled" class="text-2xl font-bold text-red-400 italic">Laden...</h2>
+                    <h2 id="status-enabled" class="text-2xl font-bold italic">Laden...</h2>
                 </div>
                 <div class="card">
-                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Geplande Actie</p>
-                    <h2 id="status-action" class="text-2xl font-bold text-blue-400 italic">Analyseert...</h2>
+                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Tijdzone (HA)</p>
+                    <h2 id="status-timezone" class="text-2xl font-bold text-blue-400 italic">...</h2>
                 </div>
                 <div class="card">
-                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Laatste Synchronisatie</p>
+                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Laatste Update</p>
                     <h2 id="status-update" class="text-2xl font-bold">--:--</h2>
                 </div>
             </div>
 
             <div class="card">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-lg font-semibold">24-uurs Prijsverwachting & Strategie</h3>
-                    <div class="flex gap-4 text-xs">
-                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-emerald-500/50 rounded"></span> Laden</span>
-                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-red-500/50 rounded"></span> Ontladen</span>
-                        <span class="flex items-center gap-1"><span class="w-3 h-3 bg-slate-500/20 rounded"></span> Stand-by</span>
+                    <h3 class="text-lg font-semibold">Prijs & Weersverwachting</h3>
+                    <div class="flex gap-4 text-[10px]">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 bg-emerald-500 rounded"></span> Laden</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 bg-rose-500 rounded"></span> Ontladen</span>
                     </div>
                 </div>
-                <div class="h-[400px] relative">
+                <div class="h-[350px] relative">
                     <canvas id="priceChart"></canvas>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="card overflow-hidden">
+                    <h3 class="text-lg font-bold mb-4">Gedetailleerde Planning</h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead>
+                                <tr class="border-b border-slate-700">
+                                    <th class="py-2">Tijd</th>
+                                    <th class="py-2">Prijs</th>
+                                    <th class="py-2">Weer</th>
+                                    <th class="py-2">Actie</th>
+                                </tr>
+                            </thead>
+                            <tbody id="forecast-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 class="text-lg font-bold mb-4">Omvormer Registers (Mapped)</h3>
+                    <div id="slots-container" class="space-y-3"></div>
                 </div>
             </div>
         </div>
 
-        <!-- Config Page -->
-        <div id="page-config" class="hidden space-y-6 animate-fade-in">
+        <div id="page-config" class="hidden space-y-6">
             <form id="configForm" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="space-y-6">
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-emerald-400">⚙️ Basis Instellingen</h3>
+                        <h3 class="text-lg font-bold mb-4 text-emerald-400">⚙️ Algemeen</h3>
                         <div class="space-y-4">
                             <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                                <div>
-                                    <p class="font-bold">Automatisering Activeren</p>
-                                    <p class="text-xs text-slate-400">Zet het algoritme volledig AAN of UIT.</p>
-                                </div>
+                                <div><p class="font-bold">Automatisering Actief</p></div>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" name="enabled" class="sr-only peer">
                                     <div class="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                 </label>
                             </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">Nordpool Regio (NL/BE/SE3)</label>
-                                <input type="text" name="nordpool_area" class="input-field">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="block text-xs text-slate-400 mb-1">Nordpool Regio</label><input type="text" name="nordpool_area" class="input-field"></div>
+                                <div><label class="block text-xs text-slate-400 mb-1">Valuta</label><input type="text" name="currency" class="input-field"></div>
                             </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">Valuta</label>
-                                <input type="text" name="currency" class="input-field">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">Strategie</label>
-                                <select name="strategy" class="input-field">
-                                    <option value="Maximize Profit">Maximize Profit (Arbitrage)</option>
-                                    <option value="Maximize Self-Consumption">Maximize Self-Consumption</option>
-                                </select>
+                            <div><label class="block text-xs text-slate-400 mb-1">Strategie</label>
+                                <select name="strategy" class="input-field"><option value="Maximize Profit">Maximize Profit</option><option value="Maximize Self-Consumption">Maximize Self-Consumption</option></select>
                             </div>
                         </div>
                     </div>
 
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-emerald-400">🔋 Accu Parameters</h3>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">Capaciteit (kWh)</label>
-                                <input type="number" step="0.1" name="battery_capacity_kwh" class="input-field">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">Max Laden (kW)</label>
-                                <input type="number" step="0.1" name="max_charge_rate_kw" class="input-field">
+                        <h3 class="text-lg font-bold mb-4 text-emerald-400">☀️ Meteoserver Integratie</h3>
+                        <div class="space-y-4">
+                            <div><label class="block text-xs text-slate-400 mb-1">API Sleutel</label><input type="password" name="meteoserver_key" class="input-field" placeholder="Je Meteoserver.nl Key"></div>
+                            <div><label class="block text-xs text-slate-400 mb-1">Locatie (Stad)</label><input type="text" name="meteoserver_location" class="input-field"></div>
+                            <div><label class="block text-xs text-slate-400 mb-1">Solar Reductie Factor (0.0 - 1.0)</label>
+                                <input type="number" step="0.1" min="0" max="1" name="solar_reduction_factor" class="input-field">
+                                <p class="text-[10px] text-slate-500 mt-1">Hoeveel Grid Charging verminderen bij zonverwachting.</p>
                             </div>
                         </div>
                     </div>
@@ -111,35 +120,22 @@
 
                 <div class="space-y-6">
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-emerald-400">📊 Prijs Drempels</h3>
+                        <h3 class="text-lg font-bold mb-4 text-emerald-400">📊 Drempelwaarden</h3>
                         <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">Laad Drempel (%)</label>
-                                <input type="number" name="charge_threshold_pct" class="input-field">
-                                <p class="text-[10px] text-slate-500 mt-1">Laden onder dit % van dag-gemiddelde.</p>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-300 mb-1">Ontlaad Drempel (%)</label>
-                                <input type="number" name="discharge_threshold_pct" class="input-field">
-                                <p class="text-[10px] text-slate-500 mt-1">Ontladen boven dit % van dag-gemiddelde.</p>
-                            </div>
+                            <div><label class="block text-xs text-slate-400 mb-1">Laad Drempel %</label><input type="number" name="charge_threshold_pct" class="input-field"></div>
+                            <div><label class="block text-xs text-slate-400 mb-1">Ontlaad Drempel %</label><input type="number" name="discharge_threshold_pct" class="input-field"></div>
                         </div>
                     </div>
 
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-emerald-400">🔌 Solarman Entiteiten</h3>
-                        <p class="text-xs text-slate-400 mb-4 italic">Vul de entiteit-IDs in zoals ze in Home Assistant bekend zijn.</p>
-                        <div class="space-y-2 max-h-[300px] overflow-y-auto pr-2">
-                            <label class="block text-xs font-medium text-slate-400">Batterij SOC Sensor</label>
-                            <input type="text" name="solarman_battery_soc" class="input-field text-sm">
-                            
-                            <hr class="border-slate-700 my-4">
-                            <p class="text-xs font-bold text-slate-300">Tijd Registers (Prog 1-6)</p>
-                            <div id="prog-times-container" class="grid grid-cols-2 gap-2"></div>
+                        <h3 class="text-lg font-bold mb-4 text-emerald-400">🔋 Solarman Entiteiten</h3>
+                        <div class="space-y-3">
+                            <div><label class="block text-xs text-slate-400 mb-1">Batterij SOC Sensor</label><input type="text" name="solarman_battery_soc" class="input-field text-xs"></div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase mt-4">Tijd Registers (1-6)</p>
+                            <div id="prog-times-inputs" class="grid grid-cols-2 gap-2"></div>
                         </div>
                     </div>
-
-                    <button type="submit" class="btn-primary shadow-lg shadow-emerald-900/20 mt-4">Instellingen Opslaan</button>
+                    <button type="submit" class="btn-primary shadow-lg shadow-emerald-900/40">Instellingen Opslaan</button>
                 </div>
             </form>
         </div>
@@ -150,8 +146,7 @@
         const apiBase = window.location.pathname.replace(/\/$/, "");
 
         function showPage(id) {
-            document.getElementById('page-dashboard').classList.add('hidden');
-            document.getElementById('page-config').classList.add('hidden');
+            document.querySelectorAll('main > div').forEach(p => p.classList.add('hidden'));
             document.getElementById('page-' + id).classList.remove('hidden');
         }
 
@@ -160,18 +155,16 @@
                 const r = await fetch(apiBase + '/api/status');
                 const data = await r.json();
                 
-                const enabledEl = document.getElementById('status-enabled');
-                enabledEl.innerText = data.config.enabled ? 'ACTIEF' : 'GEDEACTIVEERD';
-                enabledEl.className = 'text-2xl font-bold ' + (data.config.enabled ? 'text-emerald-400' : 'text-rose-400');
-                
+                document.getElementById('status-enabled').innerText = data.config.enabled ? 'SYSTEEM ACTIEF' : 'STANDBY';
+                document.getElementById('status-enabled').className = 'text-2xl font-bold ' + (data.config.enabled ? 'text-emerald-400' : 'text-rose-400');
+                document.getElementById('status-timezone').innerText = data.timezone;
                 document.getElementById('status-update').innerText = data.last_update ? new Date(data.last_update).toLocaleTimeString() : '--:--';
                 
-                if (data.forecast.length > 0) {
-                    document.getElementById('status-action').innerText = data.forecast[0].action;
-                    updateChart(data.forecast);
-                }
+                updateForecastTable(data.forecast);
+                updateSlots(data.inverter_slots);
+                updateChart(data.forecast);
 
-                // Populate form
+                // Form populate
                 const form = document.getElementById('configForm');
                 for (let k in data.config) {
                     if (form[k]) {
@@ -179,50 +172,55 @@
                         else form[k].value = data.config[k];
                     }
                 }
-                
-                // Dynamic prog times (one-time setup)
-                if (document.getElementById('prog-times-container').children.length === 0) {
-                    data.config.solarman_prog_times.forEach((id, i) => {
+
+                if (document.getElementById('prog-times-inputs').children.length === 0) {
+                    data.config.solarman_prog_times.forEach((val, i) => {
                         const input = document.createElement('input');
-                        input.type = 'text';
-                        input.value = id;
-                        input.className = 'input-field text-[10px]';
-                        input.placeholder = `Prog ${i+1} Time ID`;
-                        document.getElementById('prog-times-container').appendChild(input);
+                        input.type = 'text'; input.value = val; input.className = 'input-field text-[10px]';
+                        input.dataset.idx = i;
+                        document.getElementById('prog-times-inputs').appendChild(input);
                     });
                 }
+            } catch (e) { console.error("API Error", e); }
+        }
 
-            } catch (e) { console.error("Update fail", e); }
+        function updateForecastTable(forecast) {
+            const container = document.getElementById('forecast-table');
+            container.innerHTML = forecast.map(f => `
+                <tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
+                    <td class="py-2 font-mono">${new Date(f.time).getHours()}:00</td>
+                    <td class="py-2">€${f.price.toFixed(3)}</td>
+                    <td class="py-2 text-[10px] text-slate-400">${f.weather} ${f.is_sunny ? '☀️' : ''}</td>
+                    <td class="py-2"><span class="badge ${f.action==='CHARGE'?'bg-emerald-500/20 text-emerald-400':(f.action==='DISCHARGE'?'bg-rose-500/20 text-rose-400':'text-slate-500')}">${f.action}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        function updateSlots(slots) {
+            const container = document.getElementById('slots-container');
+            container.innerHTML = slots.map((s, i) => `
+                <div class="flex items-center justify-between p-2 bg-slate-800/50 rounded border border-slate-700 text-xs">
+                    <span class="font-bold text-slate-400">Prog ${i+1}</span>
+                    <span class="font-mono text-emerald-400">${s.start}:00</span>
+                    <span class="badge ${s.action==='CHARGE'?'bg-emerald-500/20 text-emerald-400':(s.action==='DISCHARGE'?'bg-rose-500/20 text-rose-400':'text-slate-500')}">${s.action}</span>
+                </div>
+            `).join('');
         }
 
         function updateChart(forecast) {
             const ctx = document.getElementById('priceChart').getContext('2d');
-            const labels = forecast.map(f => new Date(f.time).getHours() + ':00');
-            const prices = forecast.map(f => f.price);
-            const colors = forecast.map(f => f.action === 'CHARGE' ? 'rgba(16, 185, 129, 0.6)' : (f.action === 'DISCHARGE' ? 'rgba(244, 63, 94, 0.6)' : 'rgba(71, 85, 105, 0.2)'));
-
             if (chart) chart.destroy();
             chart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels: forecast.map(f => new Date(f.time).getHours() + ':00'),
                     datasets: [{
-                        label: 'Nordpool Prijs',
-                        data: prices,
-                        backgroundColor: colors,
-                        borderRadius: 4,
-                        borderWidth: 0
+                        data: forecast.map(f => f.price),
+                        backgroundColor: forecast.map(f => f.action==='CHARGE'?'rgba(16, 185, 129, 0.6)':(f.action==='DISCHARGE'?'rgba(244, 63, 94, 0.6)':'rgba(71, 85, 105, 0.2)')),
+                        borderRadius: 5
                     }]
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
-                        x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
-                    }
-                }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: '#334155' } } } }
             });
         }
 
@@ -232,25 +230,20 @@
             const config = {};
             formData.forEach((v, k) => {
                 if (k === 'enabled') config[k] = true;
-                else if (['charge_threshold_pct', 'discharge_threshold_pct', 'battery_capacity_kwh', 'max_charge_rate_kw'].includes(k)) config[k] = parseFloat(v);
+                else if (['charge_threshold_pct', 'discharge_threshold_pct', 'battery_capacity_kwh', 'max_charge_rate_kw', 'solar_reduction_factor'].includes(k)) config[k] = parseFloat(v);
                 else config[k] = v;
             });
             if (!config.enabled) config.enabled = false;
             
-            // Collect times (simplified for this example)
-            const timeInputs = document.getElementById('prog-times-container').querySelectorAll('input');
+            const timeInputs = document.getElementById('prog-times-inputs').querySelectorAll('input');
             config.solarman_prog_times = Array.from(timeInputs).map(i => i.value);
 
-            await fetch(apiBase + '/api/config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            });
-            alert('Instellingen succesvol opgeslagen!');
+            await fetch(apiBase + '/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
+            alert('Instellingen succesvol gepusht!');
             loadData();
         };
 
-        setInterval(loadData, 30000);
+        setInterval(loadData, 60000);
         loadData();
     </script>
 </body>

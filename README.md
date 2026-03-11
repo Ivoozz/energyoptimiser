@@ -1,85 +1,41 @@
-# EnergyOptimiser: De Ultieme Gids voor Slimme Accu-Optimalisatie
+# EnergyOptimiser v2026.3.1
 
-Welkom bij **EnergyOptimiser**. Dit programma is ontworpen om je thuisaccu intelligent aan te sturen op basis van de dynamische uurtarieven van **Nordpool**, specifiek geoptimaliseerd voor inverters die gebruik maken van de **Solarman** integratie in Home Assistant.
+Slim energiebeheer voor je thuisaccu, volledig geïntegreerd met Home Assistant, Nordpool prijzen en Meteoserver weersvoorspellingen.
 
----
+## 🚀 Nieuw in v2026.3.1
+- **Meteoserver Integratie**: Gebruik hoge-resolutie KNMI data om je laadstrategie aan te passen op de zonverwachting.
+- **Solar Reduction**: Bespaar nog meer door minder van het net te laden als de zon morgen gaat schijnen.
+- **Verbeterde UI**: Bekijk je planning tot in detail in de vernieuwde web-interface.
+- **HA 2026.3.1 Support**: Volledig compatibel met de nieuwste Python 3.14 omgeving van Home Assistant.
 
-## 1. Installatie (De "1-Click" Methode)
+## 🛠 Installatie
+1. Voeg deze repository toe aan de Home Assistant Add-on Store: `https://github.com/Ivoozz/energyoptimiser`
+2. Installeer de **EnergyOptimiser** add-on.
+3. Start de add-on en open de **Web UI** via de zijbalk.
 
-1.  Open **Home Assistant**.
-2.  Navigeer naar **Instellingen** > **Add-ons**.
-3.  Klik rechtsonder op **Add-on Store**.
-4.  Klik rechtsboven op de drie puntjes (Menu) en kies **Opslagplaatsen**.
-5.  Plak de volgende URL in het veld: `https://github.com/Ivoozz/energyoptimiser` en klik op **Toevoegen**.
-6.  Vernieuw de pagina. Je ziet nu **EnergyOptimiser** onderaan de lijst staan.
-7.  Klik op de add-on en klik op **Installeren**.
+## ⚙️ Configuratie via Web UI
+In plaats van de standaard HA instellingen, gebruik je de knop **"Instellingen"** in de EnergyOptimiser Web UI voor een rijkere ervaring:
 
----
+### 1. Nordpool & Meteoserver
+- **API Key**: Vraag een gratis of betaalde sleutel aan op [Meteoserver.nl](https://meteoserver.nl/).
+- **Locatie**: Vul je stad in voor lokale voorspellingen.
+- **Solar Reductie Factor**: Stel in hoe agressief je wilt besparen op netstroom bij zon. (0.5 betekent 50% minder grid-charging bij zon).
 
-## 2. Configuratie (Stap-voor-Stap)
+### 2. Solarman Registers
+Zorg dat je de entiteit-IDs van je Solarman (Deye/Sunsynk) omvormer bij de hand hebt:
+- **SOC Sensor**: `sensor.solarman_battery_soc`
+- **Tijd Registers**: De 6 registers die de starttijden regelen (number).
+- **SOC Registers**: De 6 registers die de doel-percentages regelen (number).
+- **Grid Charge Switches**: De 6 schakelaars om laden vanaf het net te forceren (switch).
 
-Zodra de installatie is voltooid, moet je de add-on koppelen aan je Solarman sensoren. Ga naar het tabblad **Configuratie** binnen de add-on.
-
-### Essentiële Instellingen:
-- **Nordpool Area:** Stel je regio in (bijv. `NL` voor Nederland, `BE` voor België).
-- **Solarman Battery SOC:** De entiteit-ID van je batterijpercentage (bijv. `sensor.solarman_battery_soc`).
-- **Charge Switch:** De switch-entiteit die het laden vanaf het net (Grid Charge) aan- of uitzet (bijv. `switch.solarman_grid_charge`).
-- **Discharge Limit:** De entiteit waarmee je de ontlaadlimiet instelt (bijv. `number.solarman_battery_discharge_limit`).
-- **Battery Capacity (kWh):** De totale bruikbare capaciteit van je accu (bijv. `10.5`).
-- **Strategy:** Kies tussen:
-    - `Maximize Profit`: Laadt de accu op als de stroom spotgoedkoop is en ontlaadt als de stroom duur is (Arbitrage).
-    - `Maximize Self-Consumption`: Gebruikt de accu primair om je eigen zonne-energie op te slaan en te verbruiken, en laadt alleen bij van het net als de accu bijna leeg is.
-
-Klik op **Opslaan** en start de add-on.
-
----
-
-## 3. Gebruik van de GUI (Bedieningspaneel)
-
-EnergyOptimiser heeft een ingebouwd bedieningspaneel dat via **Ingress** werkt.
-
-1.  Klik in de Home Assistant zijbalk op **EnergyOptimiser** (of ga naar de add-on pagina en klik op "Open Web UI").
-2.  **Dashboard:** Hier zie je direct de huidige actie van het programma (`IDLE`, `CHARGE`, of `DISCHARGE`).
-3.  **Prijsgrafiek & Forecast:** De GUI toont een grafiek van de komende 24 uur. 
-    - De **blauwe lijn** zijn de Nordpool prijzen per uur.
-    - De **gekleurde blokken** onderaan de grafiek geven aan wat het programma gaat doen:
-        - **Groen:** Gepland opladen vanaf het net.
-        - **Rood:** Gepland ontladen (om duur verbruik te dekken).
-        - **Grijs:** Stand-by (gebruik van zonne-energie of batterij).
+## 📊 Hoe het werkt
+De EnergyOptimiser draait een continue loop (standaard elk uur):
+1. Haalt de actuele **Nordpool** prijzen op.
+2. Haalt de **Meteoserver** verwachting op.
+3. Berekent de optimale strategie (Maximize Profit of Self-Consumption).
+4. Mapt de 24-uurs planning naar de **6 fysieke slots** van je omvormer.
+5. Pusht de tijden, SOC-doelen en Grid-Charge status direct naar Home Assistant.
 
 ---
-
-### 6-Programma Regeling (Solarman/Deye/Sunsynk)
-Veel moderne omvormers (zoals Deye en Sunsynk) die gebruik maken van Solarman loggers, werken met een systeem van **6 tijdsperiodes** (ook wel Time-of-Use genoemd).
-
-EnergyOptimiser analyseert de 24-uurs prijsverwachting en verdeelt deze over de 6 beschikbare slots:
-1.  **Tijden:** De add-on stelt de starttijden van de 6 programma's in om de goedkoopste en duurste uren te dekken.
-2.  **Grid Charge:** Per slot wordt bepaald of de accu vanaf het net geladen moet worden (`Grid Charge` AAN) of juist moet ontladen voor je huis (`Grid Charge` UIT + lage SOC target).
-3.  **SOC Targets:** De doelen voor de batterijlading (bijv. 100% tijdens goedkope uren, 20% tijdens dure uren) worden automatisch naar de omvormer gepusht.
-
-**Let op:** Zorg ervoor dat je in Home Assistant de entiteiten voor `Prog1 Time`, `Prog1 SOC`, `Prog1 Grid Charge`, etc. hebt geconfigureerd via je Solarman integratie. Vul deze entiteit-IDs in bij de configuratie van deze add-on.
-
-1.  **Data ophalen:** Het haalt de meest recente prijzen op bij Nordpool.
-2.  **Analyse:** Het berekent de gemiddelde prijs van de dag. 
-3.  **Besluitvorming:**
-    - Is de huidige prijs **lager dan 85%** van het daggemiddelde? Dan wordt de `Charge Switch` aangezet.
-    - Is de huidige prijs **hoger dan 115%** van het daggemiddelde? Dan wordt de ontlaadlimiet verlaagd zodat de accu kan leveren.
-4.  **Automatisering:** De commando's worden direct naar je Solarman inverter gestuurd via de interne Home Assistant verbinding.
-
----
-
-## 5. Veelgestelde Vragen (FAQ)
-
-**V: Werkt dit met elke Solarman inverter?**
-A: Ja, zolang je de `homeassistant-solarman` integratie hebt geïnstalleerd en de juiste registers (zoals Grid Charge) zichtbaar zijn als entiteiten in Home Assistant.
-
-**V: Kan ik handmatig ingrijpen?**
-A: Zodra je de add-on stopt, stopt ook de automatische aansturing. Je kunt dan weer handmatig je inverter bedienen.
-
-**V: Wat als Nordpool geen data geeft?**
-A: Het programma blijft in de laatste veilige stand (`IDLE`) totdat de verbinding is hersteld.
-
----
-
-## Ondersteuning & Bijdragen
-Heb je problemen met het instellen van je specifieke omvormer? Open een issue op onze GitHub pagina!
+**Publisher:** FixjeICT  
+**Support:** info@fixjeict.nl

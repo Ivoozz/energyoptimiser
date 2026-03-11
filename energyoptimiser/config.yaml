@@ -1,7 +1,7 @@
 name: "EnergyOptimiser"
-version: "2026.3.0"
+version: "2026.3.1"
 slug: "energyoptimiser"
-description: "Professional battery energy management using Nordpool prices and Solarman integration. Automated 6-program scheduling."
+description: "Professional battery energy management with Nordpool pricing and Meteoserver weather integration."
 url: "https://github.com/Ivoozz/energyoptimiser"
 arch:
   - aarch64

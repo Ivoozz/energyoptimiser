@@ -1,13 +1,15 @@
-# EnergyOptimiser v2026.3.0
+# Changelog
 
-Professional battery energy management for Home Assistant.
+## v2026.3.1
+- **Feature**: Integrated **Meteoserver.nl** for high-resolution Dutch weather forecasts.
+- **Feature**: Added **Solar Reduction Factor** to adjust grid charging based on sunny weather predictions.
+- **Enhancement**: Improved 6-slot mapping algorithm for Solarman inverters.
+- **Enhancement**: Complete UI overhaul with detailed forecast tables and mapped slot views.
+- **Fix**: Re-structured Docker build for **Home Assistant 2026.3.1** compatibility (Alpine 3.23 + Python 3.14).
+- **Fix**: Fixed Ingress sub-path issues with dynamic root middleware.
+- **Stability**: Added extremely verbose logging for easier troubleshooting.
 
-## Changelog
-### v2026.3.0
-- Complete ground-up rebuild.
-- Migrated to S6-Overlay v3 standards.
-- Fully compatible with HA 2026.3.1.
-- Added Internal Web Dashboard via Ingress.
-- Automated 6-program Solarman scheduling.
-- Fixed PID 1 fatal errors.
-- Fixed API Permission Forbidden errors.
+## v2026.3.0
+- Ground-up rebuild.
+- Migrated to S6-Overlay v3.
+- Integrated internal web dashboard.
