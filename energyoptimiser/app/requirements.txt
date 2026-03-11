@@ -4,3 +4,5 @@ pynordpool
 aiohttp
 python-dotenv
 asyncio
+pytz
+requests
