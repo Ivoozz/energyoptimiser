@@ -1,0 +1,44 @@
+{
+  "configuration": {
+    "enabled": {
+      "name": "Enabled",
+      "description": "Enables the overall automation."
+    },
+    "nordpool_area": {
+      "name": "Nordpool Area",
+      "description": "The Nordpool area to fetch prices for (e.g. NL, BE, SE3)."
+    },
+    "currency": {
+      "name": "Currency",
+      "description": "The currency to display prices in (e.g. EUR, SEK)."
+    },
+    "solarman_battery_soc": {
+      "name": "Battery SOC Sensor",
+      "description": "The entity-ID for the battery SOC sensor."
+    },
+    "battery_capacity_kwh": {
+      "name": "Battery Capacity (kWh)",
+      "description": "The total usable capacity of your battery pack in kWh."
+    },
+    "max_charge_rate_kw": {
+      "name": "Max Charge Rate (kW)",
+      "description": "The maximum charge rate from the grid."
+    },
+    "strategy": {
+      "name": "Strategy",
+      "description": "The optimization strategy."
+    },
+    "charge_threshold_pct": {
+      "name": "Charge Threshold (%)",
+      "description": "The percentage of the daily average price below which the battery will charge."
+    },
+    "discharge_threshold_pct": {
+      "name": "Discharge Threshold (%)",
+      "description": "The percentage of the daily average price above which the battery will discharge."
+    },
+    "update_interval_minutes": {
+      "name": "Update Interval (minutes)",
+      "description": "How often the optimization runs."
+    }
+  }
+}

@@ -1,0 +1,1 @@
+{"name": "energy-optimiser-ui", "version": "1.0.0", "scripts": {"build": "mkdir -p dist && echo \"<h1>EnergyOptimiser</h1>\" > dist/index.html"}}

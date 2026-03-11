@@ -1,0 +1,56 @@
+{
+  "configuration": {
+    "enabled": {
+      "name": "Activeren",
+      "description": "Zet de gehele automatisering aan of uit. Indien uitgeschakeld, worden er geen wijzigingen naar de omvormer gestuurd."
+    },
+    "nordpool_area": {
+      "name": "Nordpool Regio",
+      "description": "De regio waarvoor de Nordpool prijzen moeten worden opgehaald (bijv. NL, BE, SE3)."
+    },
+    "currency": {
+      "name": "Valuta",
+      "description": "De valuta waarin de prijzen worden weergegeven (bijv. EUR, SEK)."
+    },
+    "solarman_battery_soc": {
+      "name": "Batterij SOC Sensor",
+      "description": "De entiteit-ID van je batterijpercentage sensor in Home Assistant."
+    },
+    "battery_capacity_kwh": {
+      "name": "Batterij Capaciteit (kWh)",
+      "description": "De totale bruikbare capaciteit van je accupakket in kilowattuur."
+    },
+    "max_charge_rate_kw": {
+      "name": "Max Laadsnelheid (kW)",
+      "description": "De maximale snelheid waarmee de accu mag laden vanaf het net (in kW)."
+    },
+    "strategy": {
+      "name": "Strategie",
+      "description": "De optimalisatie-strategie: Winstmaximalisatie (Arbitrage) of Eigen Verbruik maximaliseren."
+    },
+    "charge_threshold_pct": {
+      "name": "Laad Drempel (%)",
+      "description": "Percentage van de gemiddelde dagprijs waaronder de accu moet laden (bijv. 85%)."
+    },
+    "discharge_threshold_pct": {
+      "name": "Ontlaad Drempel (%)",
+      "description": "Percentage van de gemiddelde dagprijs waarboven de accu moet ontladen (bijv. 115%)."
+    },
+    "update_interval_minutes": {
+      "name": "Update Interval (minuten)",
+      "description": "Hoe vaak de add-on de prijzen moet herberekenen en de omvormer moet aansturen."
+    },
+    "solarman_prog_times": {
+      "name": "Solarman Programma Tijden",
+      "description": "Lijst met entiteit-IDs voor de starttijden van de 6 programma-slots op de omvormer."
+    },
+    "solarman_prog_socs": {
+      "name": "Solarman Programma SOCs",
+      "description": "Lijst met entiteit-IDs voor de target SOC (%) per programma-slot."
+    },
+    "solarman_prog_grid_charges": {
+      "name": "Solarman Grid Charge Switches",
+      "description": "Lijst met entiteit-IDs voor de Grid Charge switches per programma-slot."
+    }
+  }
+}
