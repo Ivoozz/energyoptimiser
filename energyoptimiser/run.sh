@@ -1,6 +1,9 @@
-#!/usr/bin/with-contenv bashio
+#!/usr/bin/env bashio
 
-bashio::log.info "Starting EnergyOptimiser Add-on (v1.5.1)..."
+bashio::log.info "Starting EnergyOptimiser Add-on (v1.5.2)..."
+
+# In S6 v3, environment variables are already populated.
+# We can still use bashio to get specific info.
 
 # Set Timezone
 TZ=$(bashio::info.timezone)
