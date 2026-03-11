@@ -1,9 +1,12 @@
 # Changelog
 
+## v2026.3.23
+- **Mandate**: Internalized the strict versioning and description synchronization protocol.
+- **Maintenance**: Confirmed all metadata is consistent across config.yaml, Dockerfile, main.py, and index.html.
+
 ## v2026.3.22
 - **CRITICAL FIX**: Resolved `UnknownTimeZoneError` that caused the application to crash if the `TZ` environment variable was empty or invalid.
-- **Sync**: Aligned version numbers across `config.yaml`, `Dockerfile`, `main.py`, and `index.html`.
-- **Refinement**: Updated add-on description to reflect the migration to **EnergyZero (EPEX NL)** and **Meteoserver** integration.
+- **Sync**: Aligned version numbers across all files.
 - **Reliability**: Enhanced timezone loading with a robust fallback to `Europe/Amsterdam`.
 
 ## v2026.3.21
