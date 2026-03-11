@@ -28,6 +28,7 @@ CONFIG_PATH = "/data/config.json"
 DEFAULT_CONFIG = {
     "enabled": False,
     "price_provider": "EnergyZero",
+    "market_area": "NL",
     "currency": "EUR",
     "strategy": "Maximize Profit",
     "charge_threshold_pct": 85,
@@ -72,6 +73,9 @@ class Optimizer:
                     # Migrate old solar settings
                     if "solar_kwp" in data:
                         data["solar_arrays"] = [{"name": "Dak", "kwp": data.pop("solar_kwp"), "tilt": data.pop("solar_tilt", 35), "azimuth": data.pop("solar_azimuth", 180), "efficiency": data.pop("solar_efficiency", 0.85)}]
+                    # Migrate nordpool_area to market_area
+                    if "nordpool_area" in data:
+                        data["market_area"] = data.pop("nordpool_area")
                     # Ensure array lengths for prog settings
                     for key in ["solarman_prog_times", "solarman_prog_socs", "solarman_prog_grid_charges"]:
                         if key not in data or not isinstance(data[key], list) or len(data[key]) < 6:
@@ -127,17 +131,29 @@ class Optimizer:
             async with session.get(url) as resp:
                 if resp.status == 200:
                     data = await resp.json()
+                    if not data or "Prices" not in data:
+                        logger.error(f"EnergyZero API returned invalid data: {data}")
+                        return
+
                     new_prices = []
                     for item in data.get("Prices", []):
-                        if "readingDate" in item and "price" in item:
-                            dt = datetime.fromisoformat(item["readingDate"].replace('Z', '+00:00'))
-                            new_prices.append({"timestamp": dt, "value": float(item["price"])})
-                    self.prices = new_prices
-                    logger.info(f"Loaded {len(self.prices)} price points.")
+                        try:
+                            if "readingDate" in item and "price" in item:
+                                dt = datetime.fromisoformat(item["readingDate"].replace('Z', '+00:00'))
+                                new_prices.append({"timestamp": dt, "value": float(item["price"])})
+                        except (ValueError, TypeError) as e:
+                            logger.error(f"Error parsing price item {item}: {e}")
+                            continue
+
+                    if new_prices:
+                        self.prices = new_prices
+                        logger.info(f"Loaded {len(self.prices)} price points.")
+                    else:
+                        logger.warning("No price points loaded from EnergyZero API.")
                 else:
-                    logger.error(f"EnergyZero API Error: {resp.status}")
+                    logger.error(f"EnergyZero API Error: {resp.status} - {await resp.text()}")
         except Exception as e:
-            logger.error(f"EnergyZero Connection Error: {e}")
+            logger.error(f"EnergyZero Connection Error: {e}", exc_info=True)
 
     async def fetch_weather(self):
         key = self.config.get("meteoserver_key")
@@ -168,7 +184,9 @@ class Optimizer:
                 pr = float(array.get("efficiency", 0.85))
                 time_factor = max(0.0, 1.0 - abs(hour - 12) / 8.0)
                 total += (radiation_wm2 / 1000.0) * kwp * pr * math.cos(tilt) * time_factor * max(0.1, az_factor)
-            except: continue
+            except Exception as e:
+                logger.error(f"Error calculating solar yield for array {array.get('name', 'unknown')}: {e}", exc_info=True)
+                continue
         return max(0.0, total)
 
     def calculate_forecast(self):
