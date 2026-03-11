@@ -1,20 +1,17 @@
 # Changelog
 
+## v2026.3.3
+- **Feature**: Extensive descriptions and help-texts added directly into the Web UI for every setting.
+- **Feature**: Integrated **Zonnepanelen (Solar Panels)** yield forecasting based on global radiation.
+- **Feature**: Advanced configuration for Solar Arrays: kWp, Tilt, Azimuth, and Efficiency.
+- **Enhancement**: Visualized solar forecast on the main price chart.
+- **Enhancement**: Simplified update process via Home Assistant version management.
+- **UI**: Added a sticky "Save" button and polished the settings layout.
+
 ## v2026.3.2
-- **Feature**: Full **Solar Panel Integration**.
-- **Feature**: Solar yield forecasting using Meteoserver global radiation data.
-- **Feature**: Dynamic adjustment of grid charging based on predicted solar production.
-- **Feature**: Advanced configuration UI for solar array parameters (Tilt, Azimuth, kWp, Efficiency).
-- **Enhancement**: Visualized solar forecast line on the main price chart.
-- **Enhancement**: Real-time estimated kWh solar yield display on dashboard.
+- Initial Solar Panel Integration logic.
+- Meteoserver.nl high-resolution weather integration.
 
 ## v2026.3.1
-- Integrated Meteoserver.nl for high-resolution Dutch weather forecasts.
-- Added Solar Reduction Factor.
-- Complete UI overhaul.
 - HA 2026.3.1 compatibility fixes.
-
-## v2026.3.0
-- Ground-up rebuild.
-- Migrated to S6-Overlay v3.
-- Integrated internal web dashboard.
+- Ingress middleware updates.

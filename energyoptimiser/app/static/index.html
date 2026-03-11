@@ -12,13 +12,16 @@
         .btn-primary { background: #10b981; color: white; padding: 0.75rem; border-radius: 0.5rem; font-weight: bold; width: 100%; transition: 0.2s; border: none; cursor: pointer; }
         .btn-primary:hover { background: #059669; }
         .badge { padding: 0.25rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: bold; }
+        .help-text { color: #94a3b8; font-size: 0.75rem; margin-top: 0.25rem; line-height: 1.2; }
+        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="bg-slate-900 text-white font-sans min-h-screen">
     <nav class="bg-slate-800 p-4 border-b border-slate-700 sticky top-0 z-50">
         <div class="container mx-auto flex justify-between items-center">
             <h1 class="text-xl font-bold flex items-center gap-2">
-                <span class="text-emerald-400 text-2xl">⚡</span> EnergyOptimiser <span class="text-xs font-normal text-slate-400 bg-slate-700 px-2 py-1 rounded ml-2">v2026.3.2</span>
+                <span class="text-emerald-400 text-2xl">⚡</span> EnergyOptimiser <span class="text-xs font-normal text-slate-400 bg-slate-700 px-2 py-1 rounded ml-2">v2026.3.3</span>
             </h1>
             <div class="flex gap-6">
                 <button onclick="showPage('dashboard')" class="text-slate-300 hover:text-emerald-400 font-medium">Dashboard</button>
@@ -61,7 +64,7 @@
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="card overflow-hidden">
-                    <h3 class="text-lg font-bold mb-4">Uurlijkse Details</h3>
+                    <h3 class="text-lg font-bold mb-4">Uurlijkse Planning</h3>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-sm">
                             <thead>
@@ -77,86 +80,140 @@
                     </div>
                 </div>
                 <div class="card">
-                    <h3 class="text-lg font-bold mb-4">Omvormer Schema</h3>
+                    <h3 class="text-lg font-bold mb-4">Omvormer Registers</h3>
                     <div id="slots-container" class="space-y-3"></div>
                 </div>
             </div>
         </div>
 
         <!-- Config Page -->
-        <div id="page-config" class="hidden space-y-6">
-            <form id="configForm" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div id="page-config" class="hidden space-y-6 animate-fade-in">
+            <form id="configForm" class="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-20">
                 <div class="space-y-6">
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-emerald-400">⚙️ Systeem</h3>
+                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">⚙️ Systeembeheer</h3>
                         <div class="space-y-4">
                             <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                                <div><p class="font-bold">Automatisering Actief</p></div>
+                                <div class="max-w-[70%]">
+                                    <p class="font-bold">Automatisering Activeren</p>
+                                    <p class="help-text">Zet de hoofdschakelaar aan om het algoritme commando's naar de omvormer te laten sturen. Uitvinken stopt alle automatische acties.</p>
+                                </div>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" name="enabled" class="sr-only peer">
                                     <div class="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                 </label>
                             </div>
                             <div class="grid grid-cols-2 gap-4">
-                                <div><label class="block text-xs text-slate-400 mb-1">Nordpool Regio</label><input type="text" name="nordpool_area" class="input-field" placeholder="bijv. NL"></div>
-                                <div><label class="block text-xs text-slate-400 mb-1">Valuta</label><input type="text" name="currency" class="input-field" placeholder="EUR"></div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-300 mb-1">Nordpool Regio</label>
+                                    <input type="text" name="nordpool_area" class="input-field" placeholder="bijv. NL">
+                                    <p class="help-text">Marktgebied (NL voor Nederland, BE voor België).</p>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-300 mb-1">Valuta</label>
+                                    <input type="text" name="currency" class="input-field" placeholder="EUR">
+                                    <p class="help-text">De valuta waarin prijzen worden getoond.</p>
+                                </div>
                             </div>
-                            <div><label class="block text-xs text-slate-400 mb-1">Strategie</label>
-                                <select name="strategy" class="input-field"><option value="Maximize Profit">Winstmaximalisatie (Arbitrage)</option><option value="Maximize Self-Consumption">Eigen Verbruik Maximaliseren</option></select>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-300 mb-1">Strategie</label>
+                                <select name="strategy" class="input-field">
+                                    <option value="Maximize Profit">Winstmaximalisatie (Arbitrage)</option>
+                                    <option value="Maximize Self-Consumption">Eigen Verbruik Maximaliseren</option>
+                                </select>
+                                <p class="help-text">Profit: laden bij lage prijs, ontladen bij hoge prijs. Self-Consumption: houd accu vol voor eigen gebruik.</p>
                             </div>
                         </div>
                     </div>
 
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-yellow-400">☀️ Zonnepanelen Inrichting</h3>
+                        <h3 class="text-lg font-bold mb-4 text-yellow-400 border-b border-slate-700 pb-2">☀️ Zonnepanelen (Volledige Inrichting)</h3>
                         <div class="space-y-4">
                             <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                                <div><p class="font-bold">Inclusief Zon-voorspelling</p></div>
+                                <div class="max-w-[70%]">
+                                    <p class="font-bold">Inclusief Zon-voorspelling</p>
+                                    <p class="help-text">Gebruikt Meteoserver data om de verwachte zonne-opbrengst te berekenen en het laden vanaf het net hierop aan te passen.</p>
+                                </div>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" name="solar_enabled" class="sr-only peer">
                                     <div class="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-yellow-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                 </label>
                             </div>
                             <div class="grid grid-cols-2 gap-4">
-                                <div><label class="block text-xs text-slate-400 mb-1">Totaal kWp</label><input type="number" step="0.1" name="solar_kwp" class="input-field"></div>
-                                <div><label class="block text-xs text-slate-400 mb-1">Helling (Tilt °)</label><input type="number" name="solar_tilt" class="input-field"></div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-300 mb-1">Totaal kWp</label>
+                                    <input type="number" step="0.1" name="solar_kwp" class="input-field">
+                                    <p class="help-text">Het totale piekvermogen van je panelen (bijv. 4.2 voor 4200Wp).</p>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-300 mb-1">Helling (Tilt °)</label>
+                                    <input type="number" name="solar_tilt" class="input-field">
+                                    <p class="help-text">De hoek van je panelen (0° = plat, 35° = standaard schuin dak).</p>
+                                </div>
                             </div>
                             <div class="grid grid-cols-2 gap-4">
-                                <div><label class="block text-xs text-slate-400 mb-1">Orientatie (Azimuth °)</label><input type="number" name="solar_azimuth" class="input-field"></div>
-                                <div><label class="block text-xs text-slate-400 mb-1">Systeem Efficiëntie (0-1)</label><input type="number" step="0.05" name="solar_efficiency" class="input-field"></div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-300 mb-1">Orientatie (Azimuth °)</label>
+                                    <input type="number" name="solar_azimuth" class="input-field">
+                                    <p class="help-text">Windrichting: 180 = Zuid, 90 = Oost, 270 = West.</p>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-300 mb-1">Systeem Efficiëntie</label>
+                                    <input type="number" step="0.05" name="solar_efficiency" class="input-field">
+                                    <p class="help-text">Verliezen (omvormer, bekabeling). Standaard is 0.85 (85%).</p>
+                                </div>
                             </div>
-                            <p class="text-[10px] text-slate-500 italic">Azimuth: 180 = Zuid, 90 = Oost, 270 = West. Efficiëntie (PR) is meestal rond 0.85.</p>
                         </div>
                     </div>
                 </div>
 
                 <div class="space-y-6">
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-emerald-400">📊 Optimalisatie Drempels</h3>
+                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">📊 Optimalisatie Drempels</h3>
                         <div class="grid grid-cols-2 gap-4">
-                            <div><label class="block text-xs text-slate-400 mb-1">Laad Drempel %</label><input type="number" name="charge_threshold_pct" class="input-field"></div>
-                            <div><label class="block text-xs text-slate-400 mb-1">Ontlaad Drempel %</label><input type="number" name="discharge_threshold_pct" class="input-field"></div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-300 mb-1">Laad Drempel %</label>
+                                <input type="number" name="charge_threshold_pct" class="input-field">
+                                <p class="help-text">Laad vanaf net als de prijs onder dit % van het daggemiddelde komt.</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-300 mb-1">Ontlaad Drempel %</label>
+                                <input type="number" name="discharge_threshold_pct" class="input-field">
+                                <p class="help-text">Laat accu ontladen als de prijs boven dit % van het daggemiddelde komt.</p>
+                            </div>
                         </div>
                     </div>
 
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-emerald-400">☁️ Weerdata (Meteoserver)</h3>
+                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">☁️ Weerdata (Meteoserver)</h3>
                         <div class="space-y-4">
-                            <div><label class="block text-xs text-slate-400 mb-1">API Key</label><input type="password" name="meteoserver_key" class="input-field"></div>
-                            <div><label class="block text-xs text-slate-400 mb-1">Stad / Locatie</label><input type="text" name="meteoserver_location" class="input-field"></div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-300 mb-1">API Sleutel</label>
+                                <input type="password" name="meteoserver_key" class="input-field" placeholder="Je API Key">
+                                <p class="help-text">Vraag je sleutel aan op Meteoserver.nl voor KNMI-data.</p>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-300 mb-1">Stad / Locatie</label>
+                                <input type="text" name="meteoserver_location" class="input-field">
+                                <p class="help-text">Naam van de dichtstbijzijnde stad voor lokale voorspelling.</p>
+                            </div>
                         </div>
                     </div>
 
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-emerald-400">🔋 Solarman Configuratie</h3>
-                        <div class="space-y-2">
-                            <label class="block text-xs text-slate-400">Batterij SOC Sensor</label>
-                            <input type="text" name="solarman_battery_soc" class="input-field text-xs">
-                            <p class="text-[10px] font-bold text-slate-500 uppercase mt-4">Tijd Registers (Prog 1-6)</p>
+                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">🔋 Solarman Registers</h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-300 mb-1">Batterij SOC Sensor</label>
+                                <input type="text" name="solarman_battery_soc" class="input-field text-xs">
+                                <p class="help-text">De entiteit-ID van je accu percentage (bijv. sensor.solarman_battery_soc).</p>
+                            </div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase mt-4">Tijd Registers (Prog 1 t/m 6 Starttijd)</p>
                             <div id="prog-times-inputs" class="grid grid-cols-2 gap-2"></div>
+                            <p class="help-text italic">Let op: vul hier de volledige entiteit-IDs van de 6 programma starttijden in.</p>
                         </div>
                     </div>
-                    <button type="submit" class="btn-primary shadow-lg shadow-emerald-900/40">Alle Instellingen Opslaan</button>
+                    <button type="submit" class="btn-primary shadow-xl shadow-emerald-900/40 sticky bottom-4">💾 Alle Instellingen Opslaan</button>
                 </div>
             </form>
         </div>
@@ -169,6 +226,7 @@
         function showPage(id) {
             document.querySelectorAll('main > div').forEach(p => p.classList.add('hidden'));
             document.getElementById('page-' + id).classList.remove('hidden');
+            window.scrollTo(0,0);
         }
 
         async function loadData() {
@@ -176,8 +234,9 @@
                 const r = await fetch(apiBase + '/api/status');
                 const data = await r.json();
                 
-                document.getElementById('status-enabled').innerText = data.config.enabled ? 'SYSTEEM ACTIEF' : 'STANDBY';
-                document.getElementById('status-enabled').className = 'text-2xl font-bold ' + (data.config.enabled ? 'text-emerald-400' : 'text-rose-400');
+                const enabledEl = document.getElementById('status-enabled');
+                enabledEl.innerText = data.config.enabled ? 'SYSTEEM ACTIEF' : 'STANDBY (UIT)';
+                enabledEl.className = 'text-2xl font-bold ' + (data.config.enabled ? 'text-emerald-400' : 'text-rose-400');
                 
                 const totalSolar = data.forecast.reduce((a, b) => a + b.solar_yield, 0);
                 document.getElementById('status-solar').innerText = totalSolar.toFixed(1) + ' kWh';
@@ -214,7 +273,7 @@
                 <tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
                     <td class="py-2 font-mono">${new Date(f.time).getHours()}:00</td>
                     <td class="py-2">€${f.price.toFixed(3)}</td>
-                    <td class="py-2 text-yellow-400 font-bold">${f.solar_yield.toFixed(2)}</td>
+                    <td class="py-2 text-yellow-400 font-bold">${f.solar_yield.toFixed(2)} <span class="text-[8px] text-slate-500">kW</span></td>
                     <td class="py-2"><span class="badge ${f.action==='CHARGE'?'bg-emerald-500/20 text-emerald-400':(f.action==='DISCHARGE'?'bg-rose-500/20 text-rose-400':'text-slate-500')}">${f.action}</span></td>
                 </tr>
             `).join('');
@@ -286,7 +345,7 @@
             config.solarman_prog_times = Array.from(timeInputs).map(i => i.value);
 
             await fetch(apiBase + '/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
-            alert('Instellingen opgeslagen!');
+            alert('Instellingen succesvol opgeslagen! Het systeem herrekent de planning direct.');
             loadData();
         };
 
