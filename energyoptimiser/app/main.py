@@ -46,8 +46,8 @@ DEFAULT_CONFIG = {
     "solar_enabled": False,
     "solar_kwp": 4.0,
     "solar_tilt": 35,
-    "solar_azimuth": 180,  # South
-    "solar_efficiency": 0.85 # Performance Ratio
+    "solar_azimuth": 180,
+    "solar_efficiency": 0.85
 }
 
 @app.middleware("http")
@@ -66,6 +66,7 @@ class Optimizer:
         self.inverter_slots = []
         self.last_update = None
         self.timezone = os.getenv("TZ", "UTC")
+        self.current_soc = 50.0 # Default fallback
 
     def load_config(self):
         if os.path.exists(CONFIG_PATH):
@@ -83,6 +84,19 @@ class Optimizer:
                 json.dump(new_config, f, indent=2)
         except Exception as e:
             logger.error(f"Config save failed: {e}")
+
+    async def get_current_soc(self):
+        token = os.getenv("SUPERVISOR_TOKEN")
+        entity_id = self.config.get("solarman_battery_soc")
+        if not token or not entity_id: return
+        headers = {"Authorization": f"Bearer {token}"}
+        url = f"http://supervisor/core/api/states/{entity_id}"
+        try:
+            r = requests.get(url, headers=headers, timeout=5)
+            if r.status_code == 200:
+                self.current_soc = float(r.json().get("state", 50.0))
+                logger.info(f"Current Battery SOC: {self.current_soc}%")
+        except: pass
 
     async def fetch_prices(self):
         try:
@@ -109,25 +123,13 @@ class Optimizer:
             logger.error(f"Weather Error: {e}")
 
     def calculate_solar_yield(self, radiation_wm2, hour):
-        """
-        Estimate solar yield based on radiation, tilt, and azimuth.
-        Simplified model for real-time optimization.
-        """
         if not self.config.get("solar_enabled"): return 0
-        
         kwp = self.config.get("solar_kwp", 4.0)
         tilt = math.radians(self.config.get("solar_tilt", 35))
-        azimuth = math.radians(self.config.get("solar_azimuth", 180))
         pr = self.config.get("solar_efficiency", 0.85)
-        
-        # Simple geometric correction for tilt (heuristic)
-        # In a full model, we'd calculate sun position (elevation/azimuth)
-        # For now, we assume radiation is global horizontal and apply a fixed correction factor
-        # based on hour of day (peak at noon).
-        efficiency_factor = math.cos(tilt) # Very rough approximation
-        
-        # Standard: 1000 W/m2 gives 1kW per 1kWp
-        yield_kw = (radiation_wm2 / 1000.0) * kwp * pr * efficiency_factor
+        # Simplified: max efficiency at 12:00, zero at 0:00
+        time_factor = max(0, 1 - abs(hour - 12) / 8) 
+        yield_kw = (radiation_wm2 / 1000.0) * kwp * pr * math.cos(tilt) * time_factor
         return max(0, yield_kw)
 
     def calculate_forecast(self):
@@ -137,42 +139,68 @@ class Optimizer:
         strategy = self.config.get("strategy", "Maximize Profit")
         charge_t = self.config.get("charge_threshold_pct", 85) / 100.0
         discharge_t = self.config.get("discharge_threshold_pct", 115) / 100.0
+        battery_cap = self.config.get("battery_capacity_kwh", 5.0)
         
         tz = pytz.timezone(self.timezone)
         weather_map = {w['tijd'].split(' ')[1][:2]: w for w in self.weather} if self.weather else {}
         
-        new_forecast = []
+        # 1. Pre-calculate solar yield for the day to see if we even need to charge from grid
+        total_expected_solar_kwh = 0
+        temp_forecast = []
         for p in self.prices[:24]:
             lt = p.timestamp.astimezone(tz)
             h_str = f"{lt.hour:02d}"
-            w_point = weather_map.get(h_str, {})
-            
-            # Global Radiation from Meteoserver (gr)
-            rad = float(w_point.get('gr', 0)) if w_point else 0
-            solar_yield = self.calculate_solar_yield(rad, lt.hour)
-            
+            rad = float(weather_map.get(h_str, {}).get('gr', 0)) if h_str in weather_map else 0
+            solar_kw = self.calculate_solar_yield(rad, lt.hour)
+            total_expected_solar_kwh += solar_kw
+            temp_forecast.append({"lt": lt, "price": p.value, "solar_kw": solar_kw, "h_str": h_str})
+
+        # Energy needed to reach 100%
+        energy_needed = battery_cap * (1 - self.current_soc/100.0)
+        
+        # 2. Final Forecast Decision
+        final_forecast = []
+        for item in temp_forecast:
+            lt = item["lt"]
+            price = item["price"]
+            solar_kw = item["solar_kw"]
             action = "IDLE"
+            
             if strategy == "Maximize Profit":
-                # If solar yield is high (> 0.5 kW), we are less likely to charge from grid
-                final_charge_t = charge_t
-                if solar_yield > 0.5:
-                    final_charge_t *= 0.7 # Be more selective
+                # Decision Matrix:
+                # - If price is cheap AND (Solar is low OR Battery won't fill from sun alone) -> CHARGE
+                # - If price is expensive -> DISCHARGE
                 
-                if p.value <= (avg_p * final_charge_t):
-                    action = "CHARGE"
-                elif p.value >= (avg_p * discharge_t):
+                # If we expect enough sun to fill the battery today, we skip grid charging
+                will_fill_from_sun = (total_expected_solar_kwh > (energy_needed * 1.2)) # 20% margin
+                
+                is_cheap = price <= (avg_p * charge_t)
+                is_expensive = price >= (avg_p * discharge_t)
+                
+                if is_cheap:
+                    if not will_fill_from_sun:
+                        action = "CHARGE"
+                    else:
+                        action = "IDLE (WAIT FOR SUN)"
+                elif is_expensive:
                     action = "DISCHARGE"
             
-            new_forecast.append({
+            elif strategy == "Maximize Self-Consumption":
+                # Grid charge only if critically low (< 10%) and price is low
+                if self.current_soc < 10 and price <= (avg_p * 0.7):
+                    action = "CHARGE"
+                # Else prioritize solar
+            
+            final_forecast.append({
                 "time": lt.isoformat(),
                 "hour": lt.hour,
-                "price": round(p.value, 4),
-                "weather": w_point.get('vvoorsp', 'N/A'),
-                "solar_yield": round(solar_yield, 2),
+                "price": round(price, 4),
+                "weather": weather_map.get(item["h_str"], {}).get('vvoorsp', 'N/A'),
+                "solar_yield": round(solar_kw, 2),
                 "action": action
             })
         
-        self.forecast = new_forecast
+        self.forecast = final_forecast
         self.last_update = datetime.now()
         self.map_slots()
 
@@ -195,12 +223,10 @@ class Optimizer:
         if not token or not self.inverter_slots or not self.config.get("enabled"): return
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         base_url = "http://supervisor/core/api/services"
-        
         for i in range(min(len(self.inverter_slots), 6)):
             slot = self.inverter_slots[i]
             try:
-                t_val = slot["start"] * 100
-                requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_times"][i], "value": t_val}, timeout=5)
+                requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_times"][i], "value": slot["start"]*100}, timeout=5)
                 soc = 100 if slot["action"] == "CHARGE" else 20
                 requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_socs"][i], "value": soc}, timeout=5)
                 svc = "switch/turn_on" if slot["action"] == "CHARGE" else "switch/turn_off"
@@ -211,6 +237,7 @@ class Optimizer:
         while True:
             try:
                 if self.config.get("enabled"):
+                    await self.get_current_soc()
                     await self.fetch_prices()
                     await self.fetch_weather()
                     self.calculate_forecast()
@@ -232,7 +259,8 @@ async def get_status():
         "forecast": state.forecast,
         "inverter_slots": state.inverter_slots,
         "last_update": state.last_update.isoformat() if state.last_update else None,
-        "timezone": state.timezone
+        "timezone": state.timezone,
+        "current_soc": state.current_soc
     }
 
 @app.post("/api/config")
