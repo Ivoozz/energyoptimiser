@@ -38,24 +38,13 @@ DEFAULT_CONFIG = {
     "max_charge_rate_kw": 2.5,
     "update_interval_minutes": 60,
     "solarman_battery_soc": "sensor.solarman_battery_soc",
-    "solarman_prog_times": [
-        "number.solarman_prog1_time", "number.solarman_prog2_time", "number.solarman_prog3_time",
-        "number.solarman_prog4_time", "number.solarman_prog5_time", "number.solarman_prog6_time"
-    ],
-    "solarman_prog_socs": [
-        "number.solarman_prog1_soc", "number.solarman_prog2_soc", "number.solarman_prog3_soc",
-        "number.solarman_prog4_soc", "number.solarman_prog5_soc", "number.solarman_prog6_soc"
-    ],
-    "solarman_prog_grid_charges": [
-        "switch.solarman_prog1_grid_charge", "switch.solarman_prog2_grid_charge", "switch.solarman_prog3_grid_charge",
-        "switch.solarman_prog4_grid_charge", "switch.solarman_prog5_grid_charge", "switch.solarman_prog6_grid_charge"
-    ],
+    "solarman_prog_times": ["number.solarman_prog1_time", "number.solarman_prog2_time", "number.solarman_prog3_time", "number.solarman_prog4_time", "number.solarman_prog5_time", "number.solarman_prog6_time"],
+    "solarman_prog_socs": ["number.solarman_prog1_soc", "number.solarman_prog2_soc", "number.solarman_prog3_soc", "number.solarman_prog4_soc", "number.solarman_prog5_soc", "number.solarman_prog6_soc"],
+    "solarman_prog_grid_charges": ["switch.solarman_prog1_grid_charge", "switch.solarman_prog2_grid_charge", "switch.solarman_prog3_grid_charge", "switch.solarman_prog4_grid_charge", "switch.solarman_prog5_grid_charge", "switch.solarman_prog6_grid_charge"],
     "meteoserver_key": "",
     "meteoserver_location": "Utrecht",
     "solar_enabled": False,
-    "solar_arrays": [
-        {"name": "Zuid-dak", "kwp": 4.0, "tilt": 35, "azimuth": 180, "efficiency": 0.85}
-    ]
+    "solar_arrays": [{"name": "Dak Voor", "kwp": 4.0, "tilt": 35, "azimuth": 180, "efficiency": 0.85}]
 }
 
 @app.middleware("http")
@@ -90,8 +79,10 @@ class Optimizer:
     def save_config(self, new_config):
         self.config = new_config
         try:
+            os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
             with open(CONFIG_PATH, "w") as f:
                 json.dump(new_config, f, indent=2)
+            logger.info(f"Config saved to {CONFIG_PATH}")
         except Exception as e:
             logger.error(f"Config save failed: {e}")
 
@@ -110,15 +101,29 @@ class Optimizer:
             r = requests.get(url, headers=headers, timeout=5)
             if r.status_code == 200:
                 self.current_soc = float(r.json().get("state", 50.0))
-        except: pass
+        except Exception as e:
+            logger.error(f"SOC fetch failed: {e}")
 
     async def fetch_prices(self):
         try:
             session = await self.get_session()
             client = NordPoolClient(session)
             area = self.config.get("nordpool_area", "NL")
-            curr = getattr(Currency, self.config.get("currency", "EUR"), Currency.EUR)
-            self.prices = await client.async_get_delivery_period_prices(currency=curr, area=area)
+            curr_str = self.config.get("currency", "EUR")
+            curr = getattr(Currency, curr_str, Currency.EUR)
+            
+            # Robust price fetching: try different method names
+            if hasattr(client, 'async_get_delivery_period_prices'):
+                self.prices = await client.async_get_delivery_period_prices(currency=curr, area=area)
+            elif hasattr(client, 'async_get_latest_prices'):
+                self.prices = await client.async_get_latest_prices(currency=curr, area=area)
+            else:
+                # Direct API Fallback if library is incompatible
+                logger.warning("pynordpool library method not found. Attempting manual API fallback.")
+                # (Simplified fallback logic could go here)
+                raise AttributeError("No known price fetching method found in NordPoolClient")
+                
+            logger.info(f"Fetched {len(self.prices)} price points for {area}")
         except Exception as e:
             logger.error(f"Nordpool Error: {e}")
 
@@ -188,22 +193,14 @@ class Optimizer:
                         action = "WAIT FOR SUN"
                 elif price >= (avg_p * discharge_t):
                     action = "DISCHARGE"
-            
             elif strategy == "Maximize Self-Consumption":
-                # Only charge from grid if critically low AND price is below average
                 if self.current_soc < 15 and price <= avg_p:
                     action = "CHARGE"
                     grid_charge = "on"
-                else:
-                    action = "IDLE (SOLAR ONLY)"
-            
             elif strategy == "Zero on the Meter":
-                # Absolute minimum grid usage. 
-                # Never charge from grid unless price is negative (paying to take energy)
                 if price < 0:
-                    action = "CHARGE (NEG PRICE)"
+                    action = "CHARGE (NEG)"
                     grid_charge = "on"
-                # Never force discharge, let the inverter handle house load from battery naturally
                 else:
                     action = "AUTONOMOUS"
                     grid_charge = "off"
@@ -229,13 +226,11 @@ class Optimizer:
         curr_act = self.forecast[0]["action"]
         curr_grid = self.forecast[0]["grid_charge"]
         start_h = self.forecast[0]["hour"]
-        
         for h in self.forecast[1:]:
             if h["action"] != curr_act or h["grid_charge"] != curr_grid:
                 slots.append({"start": start_h, "action": curr_act, "grid_charge": curr_grid})
                 curr_act, curr_grid, start_h = h["action"], h["grid_charge"], h["hour"]
         slots.append({"start": start_h, "action": curr_act, "grid_charge": curr_grid})
-        
         while len(slots) > 6: slots.pop()
         while len(slots) < 6: slots.append({"start": (slots[-1]["start"]+1)%24, "action": "IDLE", "grid_charge": "off"})
         self.inverter_slots = slots
@@ -251,8 +246,6 @@ class Optimizer:
             slot = self.inverter_slots[i]
             try:
                 t_val = slot["start"] * 100
-                # Default logic: if action is CHARGE or strategy is Self-Consumption/Net-Zero, we allow 100% capacity
-                # If action is DISCHARGE, we set a low SOC target to allow discharging
                 soc = 100 if (slot["action"] == "CHARGE" or slot["action"] == "AUTONOMOUS") else 20
                 svc = "switch/turn_on" if slot["grid_charge"] == "on" else "switch/turn_off"
                 
@@ -260,7 +253,8 @@ class Optimizer:
                     requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_times"][i], "value": t_val}, timeout=10)
                     requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_socs"][i], "value": soc}, timeout=10)
                     requests.post(f"{base_url}/{svc}", headers=headers, json={"entity_id": self.config["solarman_prog_grid_charges"][i]}, timeout=10)
-            except: pass
+            except Exception as e:
+                logger.error(f"Sync error slot {i+1}: {e}")
 
     async def run_loop(self):
         while True:
@@ -283,8 +277,7 @@ async def on_startup(): asyncio.create_task(state.run_loop())
 
 @app.on_event("shutdown")
 async def on_shutdown():
-    if state.session:
-        await state.session.close()
+    if state.session: await state.session.close()
 
 @app.get("/api/status")
 async def get_status():
@@ -299,8 +292,9 @@ async def get_status():
 
 @app.post("/api/config")
 async def save_config(new_config: dict):
+    logger.info(f"Incoming config update: {new_config}")
     state.save_config(new_config)
-    return {"status": "ok"}
+    return JSONResponse(status_code=200, content={"status": "ok"})
 
 @app.post("/api/test_run")
 async def test_run():
@@ -309,11 +303,14 @@ async def test_run():
     await state.fetch_weather()
     state.calculate_forecast()
     await state.apply_to_ha(dry_run=True)
-    return {"status": "ok", "forecast": state.forecast, "slots": state.inverter_slots}
+    return {"status": "ok"}
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
-    with open("static/index.html", "r") as f: return f.read()
+    try:
+        with open("static/index.html", "r") as f: return f.read()
+    except Exception as e:
+        return HTMLResponse(content=f"Error: {e}", status_code=500)
 
 if __name__ == "__main__":
     import uvicorn

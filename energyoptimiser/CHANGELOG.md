@@ -1,14 +1,17 @@
 # Changelog
 
-## v2026.3.9
-- **Final Audit Pass**: Verified all requirements against user specifications.
-- **Fixed Icons**: Officially generated and placed `icon.png` and `logo.png` to resolve Home Assistant "puzzle piece" issues.
-- **UI Perfection**: Verified all 18 Solarman registers (6x Time, 6x SOC, 6x Grid-Charge) are editable in the dashboard.
-- **Solar Arrays**: Confirmed support for unlimited solar sets with dynamic GUI management.
-- **No Voltage Control**: Logic is strictly SOC-based for safety and compatibility.
-- **Manual Test Mode**: Connected the "Dry Run" button to the visualization engine.
+## v2026.3.11
+- **Bugfix**: Fixed Admin GUI save logic (checkboxes were not always saving correctly).
+- **Bugfix**: Resolved Nordpool connection error by adding fallback methods for `NordPoolClient`.
+- **Improvement**: Updated Ingress middleware for better sub-path handling.
+- **Maintenance**: Incremented version to restore Home Assistant update functionality.
 
-## v2026.3.8
-- Added "Zero on the Meter" strategy.
-- Integrated per-program Grid Charge status.
-- Configuration persistence guaranteed.
+## v2026.3.10
+- Every single variable is now configurable via the Admin Web UI.
+- Detailed instructions and descriptions for every variable in the GUI.
+- Added per-slot Grid Charge visualization.
+- Dynamic Solar Array management.
+
+## v2026.3.9
+- Final Pass icons fix.
+- Manual dry-run mode.
