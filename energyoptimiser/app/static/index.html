@@ -23,7 +23,7 @@
     <nav class="bg-slate-800 p-4 border-b border-slate-700 sticky top-0 z-50">
         <div class="container mx-auto flex justify-between items-center">
             <h1 class="text-xl font-bold flex items-center gap-2">
-                <span class="text-emerald-400 text-2xl">⚡</span> EnergyOptimiser <span class="text-xs font-normal text-slate-400 bg-slate-700 px-2 py-1 rounded ml-2">v2026.3.7</span>
+                <span class="text-emerald-400 text-2xl">⚡</span> EnergyOptimiser <span class="text-xs font-normal text-slate-400 bg-slate-700 px-2 py-1 rounded ml-2">v2026.3.8</span>
             </h1>
             <div class="flex gap-6">
                 <button onclick="showPage('dashboard')" class="text-slate-300 hover:text-emerald-400 font-medium">Dashboard</button>
@@ -36,26 +36,15 @@
         <!-- Dashboard Page -->
         <div id="page-dashboard" class="space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div class="card">
-                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Systeem Status</p>
-                    <h2 id="status-enabled" class="text-xl font-bold italic text-rose-400">Laden...</h2>
-                </div>
-                <div class="card">
-                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Batterij SOC</p>
-                    <h2 id="status-soc" class="text-xl font-bold text-emerald-400">--%</h2>
-                </div>
-                <div class="card">
-                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Zon-opbrengst (est.)</p>
-                    <h2 id="status-solar" class="text-xl font-bold text-yellow-400">0.0 kWh</h2>
-                </div>
-                <div class="card">
-                    <p class="text-slate-400 text-xs uppercase tracking-wider mb-1">Planning Update</p>
-                    <h2 id="status-update" class="text-xl font-bold">--:--</h2>
-                </div>
+                <div class="card"><p class="text-slate-400 text-xs uppercase mb-1">Status</p><h2 id="status-enabled" class="text-xl font-bold italic text-rose-400">Laden...</h2></div>
+                <div class="card"><p class="text-slate-400 text-xs uppercase mb-1">Batterij SOC</p><h2 id="status-soc" class="text-xl font-bold text-emerald-400">--%</h2></div>
+                <div class="card"><p class="text-slate-400 text-xs uppercase mb-1">Zon Vandaag</p><h2 id="status-solar" class="text-xl font-bold text-yellow-400">0.0 kWh</h2></div>
+                <div class="card"><p class="text-slate-400 text-xs uppercase mb-1">Strategie</p><h2 id="status-strategy" class="text-sm font-bold text-blue-400 truncate">--</h2></div>
             </div>
 
             <div class="card">
-                <div class="h-[400px] relative">
+                <h3 class="text-sm font-semibold text-slate-400 mb-4">Planning & Prijsverloop (24u)</h3>
+                <div class="h-[350px] relative">
                     <canvas id="mainChart"></canvas>
                 </div>
             </div>
@@ -70,7 +59,7 @@
                                     <th class="py-2">Tijd</th>
                                     <th class="py-2">Prijs</th>
                                     <th class="py-2">Zon (kW)</th>
-                                    <th class="py-2">Grid Charge</th>
+                                    <th class="py-2">Net-laden</th>
                                 </tr>
                             </thead>
                             <tbody id="forecast-table"></tbody>
@@ -78,7 +67,7 @@
                     </div>
                 </div>
                 <div class="card">
-                    <h3 class="text-lg font-bold mb-4 border-b border-slate-700 pb-2">Geplande Omvormer Slots</h3>
+                    <h3 class="text-lg font-bold mb-4 border-b border-slate-700 pb-2">Inverter Programma Slots</h3>
                     <div id="slots-container" class="space-y-3"></div>
                 </div>
             </div>
@@ -87,94 +76,77 @@
         <!-- Config Page -->
         <div id="page-config" class="hidden space-y-6 animate-fade-in">
             <div class="flex gap-4 mb-6">
-                <button onclick="testRun()" id="testBtn" class="btn-secondary flex-1">🧪 Handmatige Test (Dry Run)</button>
+                <button onclick="testRun()" id="testBtn" class="btn-secondary flex-1">🧪 Voer Test Optimalisatie uit (Dry Run)</button>
                 <button type="submit" form="configForm" class="btn-primary flex-1">💾 Alle Instellingen Opslaan</button>
             </div>
 
             <form id="configForm" class="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-20">
                 <div class="space-y-6">
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">⚙️ Systeembeheer</h3>
+                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">⚙️ Systeem</h3>
                         <div class="space-y-4">
                             <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                                <div class="max-w-[70%]">
-                                    <p class="font-bold">Automatisering Activeren</p>
-                                    <p class="help-text">Activeert de automatische aansturing van de omvormer. Instellingen worden elke updatecyclus gepusht.</p>
-                                </div>
+                                <div><p class="font-bold">Automatisering Activeren</p></div>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" name="enabled" class="sr-only peer">
                                     <div class="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                 </label>
                             </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div><label class="block text-xs font-bold text-slate-300">Nordpool Regio</label><input type="text" name="nordpool_area" class="input-field"><p class="help-text">Bijv. NL of BE.</p></div>
-                                <div><label class="block text-xs font-bold text-slate-300">Valuta</label><input type="text" name="currency" class="input-field"></div>
-                            </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-300">Optimalisatie Strategie</label>
+                                <label class="block text-xs font-bold text-slate-300">Strategie</label>
                                 <select name="strategy" class="input-field">
                                     <option value="Maximize Profit">Winstmaximalisatie (Arbitrage)</option>
                                     <option value="Maximize Self-Consumption">Eigen Verbruik Maximaliseren</option>
+                                    <option value="Zero on the Meter">0 op de Meter (Minimaal Net-gebruik)</option>
                                 </select>
-                                <p class="help-text">Winstmaximalisatie laadt extra bij tijdens spotgoedkope uren.</p>
+                                <p class="help-text"><b>0 op de Meter:</b> Gebruik zo min mogelijk van het net. Laadt alleen bij van het net bij negatieve prijzen of als de zon niet genoeg is.</p>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="block text-xs font-bold text-slate-300">Regio</label><input type="text" name="nordpool_area" class="input-field"></div>
+                                <div><label class="block text-xs font-bold text-slate-300">Valuta</label><input type="text" name="currency" class="input-field"></div>
                             </div>
                         </div>
                     </div>
 
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-yellow-400 border-b border-slate-700 pb-2">☀️ Zonnepanelen Inrichting</h3>
+                        <h3 class="text-lg font-bold mb-4 text-yellow-400 border-b border-slate-700 pb-2">☀️ Zonnepanelen (Meerdere Sets)</h3>
                         <div class="space-y-4">
                             <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-                                <div><p class="font-bold">Zon-voorspelling meenemen</p><p class="help-text">Berekent de som van alle sets om laadacties te optimaliseren.</p></div>
+                                <div><p class="font-bold">Zon-voorspelling meenemen</p></div>
                                 <label class="relative inline-flex items-center cursor-pointer">
                                     <input type="checkbox" name="solar_enabled" class="sr-only peer">
                                     <div class="w-11 h-6 bg-slate-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:bg-yellow-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
                                 </label>
                             </div>
                             <div id="solar-arrays-container" class="space-y-4"></div>
-                            <button type="button" onclick="addSolarArray()" class="text-xs bg-slate-700 hover:bg-slate-600 p-2 rounded w-full">+ Nieuwe set panelen toevoegen (bijv. achterkant)</button>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-blue-400 border-b border-slate-700 pb-2">🔋 Batterij & Drempels</h3>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div><label class="block text-xs font-bold text-slate-300">Capaciteit (kWh)</label><input type="number" step="0.1" name="battery_capacity_kwh" class="input-field"></div>
-                            <div><label class="block text-xs font-bold text-slate-300">Max Laden (kW)</label><input type="number" step="0.1" name="max_charge_rate_kw" class="input-field"></div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-4 mt-4">
-                            <div><label class="block text-xs font-bold text-slate-300">Laad Drempel %</label><input type="number" name="charge_threshold_pct" class="input-field"><p class="help-text">Laden onder dit % van dag-gemiddelde.</p></div>
-                            <div><label class="block text-xs font-bold text-slate-300">Ontlaad Drempel %</label><input type="number" name="discharge_threshold_pct" class="input-field"><p class="help-text">Ontladen boven dit % van dag-gemiddelde.</p></div>
+                            <button type="button" onclick="addSolarArray()" class="text-xs bg-slate-700 hover:bg-slate-600 p-2 rounded w-full">+ Nieuwe set panelen toevoegen (voor/achter)</button>
                         </div>
                     </div>
                 </div>
 
                 <div class="space-y-6">
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">🔌 Solarman Registers (STRICT SOC %)</h3>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-xs font-bold text-slate-300">Batterij SOC sensor (Home Assistant)</label>
-                                <input type="text" name="solarman_battery_soc" class="input-field text-xs" placeholder="sensor.solarman_battery_soc">
-                                <p class="help-text">Belangrijk: het systeem werkt alleen op basis van SOC % (geen voltage).</p>
-                            </div>
-                            
-                            <p class="text-[10px] font-bold text-slate-500 uppercase">Tijd Registers (Prog 1 t/m 6)</p>
-                            <div id="prog-times-inputs" class="grid grid-cols-2 gap-2"></div>
-
-                            <p class="text-[10px] font-bold text-slate-500 uppercase">SOC % Targets (Prog 1 t/m 6)</p>
-                            <div id="prog-socs-inputs" class="grid grid-cols-2 gap-2"></div>
-
-                            <p class="text-[10px] font-bold text-slate-500 uppercase">Grid-Charge Switches (Prog 1 t/m 6)</p>
-                            <div id="prog-grid-inputs" class="grid grid-cols-2 gap-2"></div>
+                        <h3 class="text-lg font-bold mb-4 text-blue-400 border-b border-slate-700 pb-2">🔋 Batterij Parameters</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="block text-xs font-bold text-slate-300">Capaciteit (kWh)</label><input type="number" step="0.1" name="battery_capacity_kwh" class="input-field"></div>
+                            <div><label class="block text-xs font-bold text-slate-300">Max Laden (kW)</label><input type="number" step="0.1" name="max_charge_rate_kw" class="input-field"></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mt-4">
+                            <div><label class="block text-xs font-bold text-slate-300">Laad Drempel %</label><input type="number" name="charge_threshold_pct" class="input-field"><p class="help-text">Grid-laden onder dit % van dagprijs.</p></div>
+                            <div><label class="block text-xs font-bold text-slate-300">Ontlaad Drempel %</label><input type="number" name="discharge_threshold_pct" class="input-field"><p class="help-text">Ontladen boven dit % van dagprijs.</p></div>
                         </div>
                     </div>
 
                     <div class="card">
-                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">☁️ Weerdata Integratie</h3>
+                        <h3 class="text-lg font-bold mb-4 text-emerald-400 border-b border-slate-700 pb-2">🔌 Solarman Registers (Entity IDs)</h3>
                         <div class="space-y-4">
-                            <div><label class="block text-xs font-bold text-slate-300">Meteoserver API Key</label><input type="password" name="meteoserver_key" class="input-field"><p class="help-text">Gratis aan te vragen op Meteoserver.nl.</p></div>
-                            <div><label class="block text-xs font-bold text-slate-300">Locatie (Stad)</label><input type="text" name="meteoserver_location" class="input-field"></div>
+                            <div><label class="block text-xs font-bold text-slate-300">Batterij SOC sensor (%)</label><input type="text" name="solarman_battery_soc" class="input-field text-xs"></div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase">Tijd Registers (Prog 1-6)</p>
+                            <div id="prog-times-inputs" class="grid grid-cols-2 gap-2"></div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase">SOC % Targets (Prog 1-6)</p>
+                            <div id="prog-socs-inputs" class="grid grid-cols-2 gap-2"></div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase">Grid-Charge Switches (Prog 1-6)</p>
+                            <div id="prog-grid-inputs" class="grid grid-cols-2 gap-2"></div>
                         </div>
                     </div>
                 </div>
@@ -199,10 +171,10 @@
                 const data = await r.json();
                 configData = data.config;
                 
-                const enabledEl = document.getElementById('status-enabled');
-                enabledEl.innerText = configData.enabled ? 'SYSTEEM ACTIEF' : 'STANDBY (UIT)';
-                enabledEl.className = 'text-xl font-bold ' + (configData.enabled ? 'text-emerald-400' : 'text-rose-400');
+                document.getElementById('status-enabled').innerText = configData.enabled ? 'SYSTEEM ACTIEF' : 'STANDBY (UIT)';
+                document.getElementById('status-enabled').className = 'text-xl font-bold ' + (configData.enabled ? 'text-emerald-400' : 'text-rose-400');
                 document.getElementById('status-soc').innerText = data.current_soc + '%';
+                document.getElementById('status-strategy').innerText = configData.strategy;
                 
                 const totalSolar = data.forecast.reduce((a, b) => a + b.solar_yield, 0);
                 document.getElementById('status-solar').innerText = totalSolar.toFixed(1) + ' kWh';
@@ -223,7 +195,6 @@
                     else form[k].value = config[k];
                 }
             }
-
             renderListInputs('prog-times-inputs', config.solarman_prog_times);
             renderListInputs('prog-socs-inputs', config.solarman_prog_socs);
             renderListInputs('prog-grid-inputs', config.solarman_prog_grid_charges);
@@ -234,7 +205,7 @@
                 const div = document.createElement('div');
                 div.className = 'p-3 bg-slate-900/50 rounded border border-slate-700 space-y-2 relative animate-fade-in';
                 div.innerHTML = `
-                    <button type="button" onclick="removeSolarArray(${i})" class="absolute top-2 right-2 text-rose-500 text-xs hover:underline">Verwijder</button>
+                    <button type="button" onclick="removeSolarArray(${i})" class="absolute top-2 right-2 text-rose-500 text-xs">Verwijder</button>
                     <input type="text" value="${array.name}" class="input-field text-xs font-bold mb-2 array-name" placeholder="Naam">
                     <div class="grid grid-cols-2 gap-2">
                         <div><label class="text-[10px] text-slate-500">kWp</label><input type="number" step="0.1" value="${array.kwp}" class="input-field text-xs array-kwp"></div>
@@ -269,14 +240,14 @@
 
         async function testRun() {
             const btn = document.getElementById('testBtn');
-            btn.innerText = '⏳ Bezig met optimaliseren...';
+            btn.innerText = '⏳ Bezig...';
             try {
                 const r = await fetch(apiBase + '/api/test_run', { method: 'POST' });
                 const data = await r.json();
-                alert('Test-run voltooid! De resultaten zijn zichtbaar op het dashboard. Er zijn geen commando’s naar de omvormer gestuurd.');
+                alert('Test-run voltooid! Resultaten staan op het dashboard.');
                 showPage('dashboard');
                 loadData();
-            } catch (e) { alert('Fout bij test: ' + e); }
+            } catch (e) { alert('Fout: ' + e); }
             btn.innerText = '🧪 Handmatige Test (Dry Run)';
         }
 
@@ -296,7 +267,7 @@
             const container = document.getElementById('slots-container');
             container.innerHTML = slots.map((s, i) => `
                 <div class="flex items-center justify-between p-3 bg-slate-800/50 rounded border border-slate-700 text-xs">
-                    <div><p class="font-bold text-slate-400">Programma ${i+1}</p><p class="font-mono text-emerald-400 text-lg">${s.start}:00</p></div>
+                    <div><p class="font-bold text-slate-400">Prog ${i+1}</p><p class="font-mono text-emerald-400 text-lg">${s.start}:00</p></div>
                     <div class="text-right">
                         <p class="text-[10px] text-slate-500 mb-1">${s.action}</p>
                         <span class="badge ${s.grid_charge==='on'?'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50':'bg-slate-700 text-slate-400'}">GRID: ${s.grid_charge.toUpperCase()}</span>
@@ -346,7 +317,7 @@
             }));
 
             await fetch(apiBase + '/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config) });
-            alert('Instellingen opgeslagen! Het systeem is bijgewerkt.');
+            alert('Instellingen opgeslagen!');
             loadData();
         };
 

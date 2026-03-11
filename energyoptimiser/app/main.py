@@ -54,7 +54,7 @@ DEFAULT_CONFIG = {
     "meteoserver_location": "Utrecht",
     "solar_enabled": False,
     "solar_arrays": [
-        {"name": "Hoofd-set", "kwp": 4.0, "tilt": 35, "azimuth": 180, "efficiency": 0.85}
+        {"name": "Zuid-dak", "kwp": 4.0, "tilt": 35, "azimuth": 180, "efficiency": 0.85}
     ]
 }
 
@@ -78,18 +78,10 @@ class Optimizer:
         self.session: Optional[aiohttp.ClientSession] = None
 
     def load_config(self):
-        """
-        Loads configuration from persistent /data directory.
-        The /data directory is preserved across add-on updates.
-        """
         if os.path.exists(CONFIG_PATH):
             try:
                 with open(CONFIG_PATH, "r") as f:
                     data = json.load(f)
-                    # Support legacy solar settings
-                    if "solar_kwp" in data:
-                        data["solar_arrays"] = [{"name": "Default", "kwp": data.pop("solar_kwp"), "tilt": data.pop("solar_tilt", 35), "azimuth": data.pop("solar_azimuth", 180), "efficiency": data.pop("solar_efficiency", 0.85)}]
-                    # Merge with defaults to ensure new keys are present
                     return {**DEFAULT_CONFIG, **data}
             except Exception as e:
                 logger.error(f"Config load failed: {e}")
@@ -100,7 +92,6 @@ class Optimizer:
         try:
             with open(CONFIG_PATH, "w") as f:
                 json.dump(new_config, f, indent=2)
-            logger.info(f"Persistent config saved to {CONFIG_PATH}")
         except Exception as e:
             logger.error(f"Config save failed: {e}")
 
@@ -197,10 +188,25 @@ class Optimizer:
                         action = "WAIT FOR SUN"
                 elif price >= (avg_p * discharge_t):
                     action = "DISCHARGE"
+            
             elif strategy == "Maximize Self-Consumption":
-                if self.current_soc < 10 and price <= (avg_p * 0.7):
+                # Only charge from grid if critically low AND price is below average
+                if self.current_soc < 15 and price <= avg_p:
                     action = "CHARGE"
                     grid_charge = "on"
+                else:
+                    action = "IDLE (SOLAR ONLY)"
+            
+            elif strategy == "Zero on the Meter":
+                # Absolute minimum grid usage. 
+                # Never charge from grid unless price is negative (paying to take energy)
+                if price < 0:
+                    action = "CHARGE (NEG PRICE)"
+                    grid_charge = "on"
+                # Never force discharge, let the inverter handle house load from battery naturally
+                else:
+                    action = "AUTONOMOUS"
+                    grid_charge = "off"
             
             new_forecast.append({
                 "time": lt.isoformat(),
@@ -245,15 +251,15 @@ class Optimizer:
             slot = self.inverter_slots[i]
             try:
                 t_val = slot["start"] * 100
-                soc = 100 if slot["action"] == "CHARGE" else 20
+                # Default logic: if action is CHARGE or strategy is Self-Consumption/Net-Zero, we allow 100% capacity
+                # If action is DISCHARGE, we set a low SOC target to allow discharging
+                soc = 100 if (slot["action"] == "CHARGE" or slot["action"] == "AUTONOMOUS") else 20
                 svc = "switch/turn_on" if slot["grid_charge"] == "on" else "switch/turn_off"
                 
                 if not dry_run:
                     requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_times"][i], "value": t_val}, timeout=10)
                     requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_socs"][i], "value": soc}, timeout=10)
                     requests.post(f"{base_url}/{svc}", headers=headers, json={"entity_id": self.config["solarman_prog_grid_charges"][i]}, timeout=10)
-                else:
-                    logger.info(f"Dry Run Slot {i+1}: {t_val}, SOC={soc}, Grid={slot['grid_charge']}")
             except: pass
 
     async def run_loop(self):
@@ -274,6 +280,11 @@ state = Optimizer()
 
 @app.on_event("startup")
 async def on_startup(): asyncio.create_task(state.run_loop())
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    if state.session:
+        await state.session.close()
 
 @app.get("/api/status")
 async def get_status():
