@@ -1,12 +1,11 @@
 # Changelog
 
-## v2026.3.17
-- **Major Fix**: Completely replaced Zonneplan/Nordpool with **EnergyZero (EPEX Spot NL)** public API for high-reliability Dutch electricity prices.
-- **UI Fix**: Re-implemented the **Solarman Registers** configuration with a bulletproof static rendering method. 18 registers (6x Time, 6x SOC, 6x Grid-Charge) are now permanently visible and editable.
-- **Persistence**: Enhanced the loading and saving logic to explicitly prevent empty arrays or data loss during updates or restarts.
-- **Detailed Descriptions**: Rewrote all Dutch help-texts and instructions for every single variable in the Admin GUI.
-- **Performance**: Standardized on asynchronous `aiohttp` for all Home Assistant and external API calls.
+## v2026.3.18
+- **Major Reliability Fix**: Implemented a **Persistent Register Mapping** system in the Admin GUI. The 18 program register fields (Times, SOC, Grid-Charge) now use static, unique HTML IDs and a non-destructive rendering cycle. This guarantees they will never be empty or disappear during updates.
+- **Price Engine**: Finalized migration to **EnergyZero (EPEX Spot NL)** as the primary, high-reliability price source.
+- **Async HA Integration**: Migrated all remaining Supervisor and Core API calls to asynchronous `aiohttp` to prevent blocking the Python event loop.
+- **Detailed Descriptions**: Fully populated all help-texts and instructions in the GUI for every single variable.
 
-## v2026.3.16
-- Architecture improvements for Raspberry Pi.
-- Standardized on EnergyZero pricing source.
+## v2026.3.17
+- Replaced NordPool with EnergyZero API.
+- Structural UI fixes.

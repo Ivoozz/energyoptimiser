@@ -5,7 +5,6 @@ import asyncio
 import os
 import json
 import logging
-import requests
 import sys
 import math
 import gc
@@ -13,7 +12,7 @@ from datetime import datetime, time, timedelta
 import pytz
 from typing import Optional, List, Dict, Any
 
-# Professional Logging for Raspberry Pi
+# Professional Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL),
@@ -46,7 +45,6 @@ DEFAULT_CONFIG = {
     "solar_arrays": [{"name": "Dak", "kwp": 4.0, "tilt": 35, "azimuth": 180, "efficiency": 0.85}]
 }
 
-# Middleware for Ingress sub-paths
 @app.middleware("http")
 async def ingress_middleware(request: Request, call_next):
     ingress_path = request.headers.get("X-Ingress-Path")
@@ -71,7 +69,7 @@ class Optimizer:
             try:
                 with open(CONFIG_PATH, "r") as f:
                     data = json.load(f)
-                    # Support legacy solar settings
+                    # Migrate old solar settings
                     if "solar_kwp" in data:
                         data["solar_arrays"] = [{"name": "Dak", "kwp": data.pop("solar_kwp"), "tilt": data.pop("solar_tilt", 35), "azimuth": data.pop("solar_azimuth", 180), "efficiency": data.pop("solar_efficiency", 0.85)}]
                     # Ensure array lengths for prog settings
@@ -89,7 +87,7 @@ class Optimizer:
             os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
             with open(CONFIG_PATH, "w") as f:
                 json.dump(new_config, f, indent=2)
-            logger.info("Config saved to persistent storage.")
+            logger.info("Config saved.")
         except Exception as e:
             logger.error(f"Failed to save config: {e}")
 
@@ -118,12 +116,7 @@ class Optimizer:
             logger.error(f"HA SOC Connection Error: {e}")
 
     async def fetch_prices(self):
-        """
-        Fetches dynamic electricity prices from EnergyZero (EPEX Spot NL).
-        EnergyZero is reliable and requires no authentication for market prices.
-        """
-        logger.info("Fetching EnergyZero (EPEX Spot NL) prices...")
-        
+        logger.info("Fetching EnergyZero prices...")
         now = datetime.now(pytz.UTC)
         start = now.strftime("%Y-%m-%dT00:00:00.000Z")
         end = (now + timedelta(days=1)).strftime("%Y-%m-%dT23:59:59.999Z")
@@ -170,11 +163,9 @@ class Optimizer:
             try:
                 kwp = float(array.get("kwp", 0.0))
                 tilt = math.radians(float(array.get("tilt", 35.0)))
-                # Simplified azimuth model
                 azimuth_deg = float(array.get("azimuth", 180.0))
                 az_factor = math.cos(math.radians(azimuth_deg - 180.0))
                 pr = float(array.get("efficiency", 0.85))
-                # Simple time efficiency curve (peak at noon)
                 time_factor = max(0.0, 1.0 - abs(hour - 12) / 8.0)
                 total += (radiation_wm2 / 1000.0) * kwp * pr * math.cos(tilt) * time_factor * max(0.1, az_factor)
             except: continue
@@ -271,7 +262,6 @@ class Optimizer:
                 svc = "switch/turn_on" if slot["grid_charge"] == "on" else "switch/turn_off"
                 
                 if not dry_run:
-                    # Parallelizing calls for performance
                     await session.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_times"][i], "value": t_val})
                     await session.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_socs"][i], "value": soc})
                     await session.post(f"{base_url}/{svc}", headers=headers, json={"entity_id": self.config["solarman_prog_grid_charges"][i]})
