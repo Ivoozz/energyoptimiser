@@ -1,5 +1,9 @@
 # Changelog
 
+## v2026.3.25
+- **UI/UX**: Designed and implemented a brand new, modern, and sleek icon and logo for the application.
+- **Maintenance**: Synchronized versioning and metadata across all files.
+
 ## v2026.3.24
 - **Bugfix**: Fixed the "UI not found" error by correcting the static file path in the backend to use relative container paths instead of absolute development paths.
 - **Maintenance**: Synchronized versioning across all components.
