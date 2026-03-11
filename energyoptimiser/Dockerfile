@@ -62,6 +62,6 @@ LABEL \
     io.hass.description="Professional battery energy management optimized for Raspberry Pi." \
     io.hass.arch="armhf|aarch64|i386|amd64" \
     io.hass.type="addon" \
-    io.hass.version="2026.3.13"
+    io.hass.version="2026.3.14"
 
 CMD [ "/run.sh" ]

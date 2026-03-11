@@ -28,7 +28,7 @@ CONFIG_PATH = "/data/config.json"
 
 DEFAULT_CONFIG = {
     "enabled": False,
-    "price_provider": "Zonneplan",
+    "price_provider": "EnergyZero",
     "currency": "EUR",
     "strategy": "Maximize Profit",
     "charge_threshold_pct": 85,
@@ -37,24 +37,13 @@ DEFAULT_CONFIG = {
     "max_charge_rate_kw": 2.5,
     "update_interval_minutes": 60,
     "solarman_battery_soc": "sensor.solarman_battery_soc",
-    "solarman_prog_times": [
-        "number.solarman_prog1_time", "number.solarman_prog2_time", "number.solarman_prog3_time",
-        "number.solarman_prog4_time", "number.solarman_prog5_time", "number.solarman_prog6_time"
-    ],
-    "solarman_prog_socs": [
-        "number.solarman_prog1_soc", "number.solarman_prog2_soc", "number.solarman_prog3_soc",
-        "number.solarman_prog4_soc", "number.solarman_prog5_soc", "number.solarman_prog6_soc"
-    ],
-    "solarman_prog_grid_charges": [
-        "switch.solarman_prog1_grid_charge", "switch.solarman_prog2_grid_charge", "switch.solarman_prog3_grid_charge",
-        "switch.solarman_prog4_grid_charge", "switch.solarman_prog5_grid_charge", "switch.solarman_prog6_grid_charge"
-    ],
+    "solarman_prog_times": ["number.solarman_prog1_time", "number.solarman_prog2_time", "number.solarman_prog3_time", "number.solarman_prog4_time", "number.solarman_prog5_time", "number.solarman_prog6_time"],
+    "solarman_prog_socs": ["number.solarman_prog1_soc", "number.solarman_prog2_soc", "number.solarman_prog3_soc", "number.solarman_prog4_soc", "number.solarman_prog5_soc", "number.solarman_prog6_soc"],
+    "solarman_prog_grid_charges": ["switch.solarman_prog1_grid_charge", "switch.solarman_prog2_grid_charge", "switch.solarman_prog3_grid_charge", "switch.solarman_prog4_grid_charge", "switch.solarman_prog5_grid_charge", "switch.solarman_prog6_grid_charge"],
     "meteoserver_key": "",
     "meteoserver_location": "Utrecht",
     "solar_enabled": False,
-    "solar_arrays": [
-        {"name": "Zuid-dak", "kwp": 4.0, "tilt": 35, "azimuth": 180, "efficiency": 0.85}
-    ]
+    "solar_arrays": [{"name": "Hoofd-set", "kwp": 4.0, "tilt": 35, "azimuth": 180, "efficiency": 0.85}]
 }
 
 @app.middleware("http")
@@ -92,7 +81,7 @@ class Optimizer:
             os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
             with open(CONFIG_PATH, "w") as f:
                 json.dump(new_config, f, indent=2)
-            logger.info(f"Config saved to {CONFIG_PATH}")
+            logger.info(f"Persistent config saved to {CONFIG_PATH}")
         except Exception as e:
             logger.error(f"Config save failed: {e}")
 
@@ -115,33 +104,34 @@ class Optimizer:
 
     async def fetch_prices(self):
         """
-        Fetches Zonneplan electricity prices from the public API.
+        Fetches dynamic electricity prices from EnergyZero (EPEX Spot NL).
+        EnergyZero is reliable and requires no authentication for market prices.
         """
-        logger.info("Fetching Zonneplan prices...")
-        url = "https://prijzen.zonneplan.nl/api/v1/rates/electricity"
+        logger.info("Fetching EnergyZero (EPEX Spot NL) prices...")
+        
+        now = datetime.now(pytz.UTC)
+        start_date = now.strftime("%Y-%m-%dT00:00:00.000Z")
+        end_date = (now + timedelta(days=1)).strftime("%Y-%m-%dT23:59:59.999Z")
+        
+        url = f"https://api.energyzero.nl/v1/energyprices?fromDate={start_date}&tillDate={end_date}&interval=4&usageType=1&inclBtw=true"
+        
         try:
             session = await self.get_session()
             async with session.get(url) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # Zonneplan returns cent/kWh, we convert to EUR/kWh
                     self.prices = []
-                    for rate in data:
-                        # Assuming 'datetime' and 'price' keys based on common Zonneplan API structure
-                        # Some versions use 'datetime' ISO string and price in cents.
-                        dt_str = rate.get('datetime')
-                        price_cents = rate.get('price')
-                        if dt_str and price_cents is not None:
-                            dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
-                            self.prices.append({
-                                "timestamp": dt,
-                                "value": float(price_cents) / 100.0
-                            })
-                    logger.info(f"Fetched {len(self.prices)} Zonneplan price points.")
+                    for item in data.get("Prices", []):
+                        dt = datetime.fromisoformat(item["readingDate"].replace('Z', '+00:00'))
+                        self.prices.append({
+                            "timestamp": dt,
+                            "value": float(item["price"])
+                        })
+                    logger.info(f"Fetched {len(self.prices)} EnergyZero price points.")
                 else:
-                    logger.error(f"Zonneplan API Error: {response.status}")
+                    logger.error(f"EnergyZero API Error: {response.status}")
         except Exception as e:
-            logger.error(f"Zonneplan fetch failed: {e}")
+            logger.error(f"Price fetch failed: {e}")
 
     async def fetch_weather(self):
         key = self.config.get("meteoserver_key")
@@ -183,7 +173,6 @@ class Optimizer:
         
         total_expected_solar_kwh = 0
         temp_data = []
-        # Filter prices for the next 24 hours from now
         now = datetime.now(pytz.UTC)
         relevant_prices = [p for p in self.prices if p["timestamp"] >= now - timedelta(hours=1)][:24]
 
