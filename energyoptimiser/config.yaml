@@ -1,5 +1,5 @@
 name: "EnergyOptimiser"
-version: "1.5.0"
+version: "1.5.1"
 slug: "energyoptimiser"
 description: "Smart battery charging/discharging based on Nordpool prices and Solarman 6-program control."
 url: "https://github.com/Ivoozz/energyoptimiser"
@@ -7,6 +7,7 @@ arch:
   - aarch64
   - amd64
   - armv7
+  - i386
 startup: "services"
 boot: "auto"
 ingress: true
@@ -14,11 +15,6 @@ ingress_port: 8000
 panel_icon: "mdi:battery-charging-high"
 panel_title: "EnergyOptimiser"
 homeassistant: "2024.1.0"
-map:
-  - config:rw
-  - addon_config:rw
-  - share:rw
-  - ssl:ro
 options:
   enabled: true
   log_level: "info"
