@@ -1,7 +1,7 @@
 name: "EnergyOptimiser"
 version: "2026.3.0"
 slug: "energyoptimiser"
-description: "Professional energy management for batteries. Integrated with Nordpool and Solarman."
+description: "Professional battery energy management using Nordpool prices and Solarman integration. Automated 6-program scheduling."
 url: "https://github.com/Ivoozz/energyoptimiser"
 arch:
   - aarch64
@@ -10,13 +10,13 @@ arch:
   - i386
 startup: "services"
 boot: "auto"
+init: false
+hassio_api: true
+hassio_role: manager
 ingress: true
 ingress_port: 8000
 panel_icon: "mdi:battery-charging-high"
 panel_title: "EnergyOptimiser"
 homeassistant: "2024.1.0"
-hassio_api: true
-hassio_role: manager
-init: false
 options: {}
 schema: {}

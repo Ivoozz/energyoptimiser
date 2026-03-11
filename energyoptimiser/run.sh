@@ -1,18 +1,15 @@
 #!/usr/bin/env bashio
 
-bashio::log.info "Starting EnergyOptimiser Add-on (v1.5.2)..."
+bashio::log.info "EnergyOptimiser v2026.3.0 is initializing..."
 
-# In S6 v3, environment variables are already populated.
-# We can still use bashio to get specific info.
+# Set System Timezone
+export TZ=$(bashio::info.timezone)
+bashio::log.info "Timezone set to: ${TZ}"
 
-# Set Timezone
-TZ=$(bashio::info.timezone)
-export TZ=$TZ
-bashio::log.info "System Timezone set to: ${TZ}"
+# Ensure data directory exists
+mkdir -p /data
 
-# Navigate to app directory
+# Start Backend
+bashio::log.info "Starting FastAPI Backend..."
 cd /app
-
-# Ensure we use the virtual environment python
-bashio::log.info "Launching Python backend..."
 exec /opt/venv/bin/python3 main.py

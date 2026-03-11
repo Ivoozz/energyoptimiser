@@ -2,55 +2,14 @@
   "configuration": {
     "enabled": {
       "name": "Systeem Activeren",
-      "description": "De hoofdschakelaar voor het EnergyOptimiser algoritme. Wanneer deze optie op 'AAN' staat, zal het systeem elk uur de energieprijzen ophalen, de optimale laad- en ontlaadvensters berekenen en deze direct naar je omvormer sturen. Als deze op 'UIT' staat, worden er geen wijzigingen meer naar de omvormer gestuurd, zodat je deze handmatig kunt bedienen. Dit is de veiligste manier om tijdelijk de controle terug te nemen."
+      "description": "Zet de EnergyOptimiser volledig aan of uit."
     },
     "nordpool_area": {
-      "name": "Nordpool Marktregio",
-      "description": "Selecteer de geografische regio waarvoor de elektriciteitsprijzen moeten worden opgehaald. Voor de Nederlandse markt is dit 'NL', voor België 'BE'. Andere opties zijn 'SE3' (Zweden), 'NO1' (Noorwegen), 'DK2' (Denemarken). Zorg dat dit exact overeenkomt met de regio van je energieleverancier voor de meest nauwkeurige besparingen."
-    },
-    "currency": {
-      "name": "Valuta Eenheid",
-      "description": "De munteenheid waarin de energieprijzen worden berekend en getoond in de grafieken. In Nederland en België is dit vrijwel altijd 'EUR'. Het systeem gebruikt deze eenheid om de ruwe data van de Nordpool API om te zetten naar waarden die je kunt vergelijken met je eigen factuur."
-    },
-    "solarman_battery_soc": {
-      "name": "Batterij Percentage Sensor (SOC)",
-      "description": "De volledige entiteit-ID van de sensor die de State of Charge (SOC) van je accu weergeeft in Home Assistant. Meestal begint dit met 'sensor.solarman_...'. Deze waarde is cruciaal voor het algoritme om te bepalen of de accu vol genoeg is om te ontladen of leeg genoeg om te laden."
-    },
-    "battery_capacity_kwh": {
-      "name": "Totale Batterijcapaciteit (kWh)",
-      "description": "De bruikbare capaciteit van je volledige batterijopslag in kilowattuur. Als je bijvoorbeeld twee modules hebt van elk 5 kWh, vul dan '10.0' in. Het systeem gebruikt deze waarde om te berekenen hoeveel energie er per uur kan worden opgeslagen en wat de impact is op je energiebalans."
-    },
-    "max_charge_rate_kw": {
-      "name": "Maximale Laadsnelheid (kW)",
-      "description": "Het maximale vermogen waarmee de accu mag worden opgeladen vanaf het elektriciteitsnet. Dit voorkomt dat de accu te snel wordt geladen (wat slecht is voor de levensduur) of dat je de hoofdaansluiting van je huis overbelast. Raadpleeg de handleiding van je omvormer voor de aanbevolen waarde (meestal tussen de 2.0 en 5.0 kW)."
-    },
-    "strategy": {
-      "name": "Optimalisatie Strategie",
-      "description": "Kies hoe het systeem moet beslissen:\n- 'Maximize Profit': Prijs-arbitrage. Laadt de accu op tijdens de allergoedkoopste uren en ontlaadt tijdens de duurste uren om geld te verdienen.\n- 'Maximize Self-Consumption': Focus op eigen verbruik. Gebruikt de accu primair om je eigen zonne-energie te bufferen en laadt alleen bij van het net als de accu kritiek leeg is."
-    },
-    "charge_threshold_pct": {
-      "name": "Laad-Drempel Percentage",
-      "description": "De trigger voor het laden vanaf het net. Als de huidige stroomprijs lager is dan dit percentage van het gemiddelde van de dag, start het laden. Bijvoorbeeld: bij 80% en een gemiddelde prijs van €0,20, start het laden zodra de prijs onder de €0,16 zakt. Hoe lager je dit zet, hoe selectiever (en goedkoper) het systeem laadt."
-    },
-    "discharge_threshold_pct": {
-      "name": "Ontlaad-Drempel Percentage",
-      "description": "De trigger voor het ontladen naar je huis. Als de prijs hoger is dan dit percentage van het gemiddelde van de dag, geeft het systeem de accu vrij om te ontladen. Bijvoorbeeld: bij 125% en een gemiddelde prijs van €0,20, start het ontladen pas als de prijs boven de €0,25 uitkomt. Zo bewaar je de energie voor de echte piekmomenten."
-    },
-    "update_interval_minutes": {
-      "name": "Berekenings-interval (minuten)",
-      "description": "Hoe vaak de EnergyOptimiser de prijzen moet controleren en de planning moet bijwerken. De standaardwaarde is 60 minuten, wat perfect aansluit bij de uurtarieven van Nordpool. Een korter interval zorgt voor snellere reacties op handmatige wijzigingen, maar verhoogt de belasting op je Home Assistant systeem."
-    },
-    "solarman_prog_times": {
-      "name": "Solarman Programma Starttijden",
-      "description": "De 6 entiteit-IDs die de starttijden van je omvormerprogramma's regelen (meestal number.solarman_prog1_time t/m 6). Het systeem past deze tijden dynamisch aan om de 6 meest optimale prijsvensters van de dag te dekken."
-    },
-    "solarman_prog_socs": {
-      "name": "Solarman Doel-percentages (SOC)",
-      "description": "De 6 entiteit-IDs voor de target SOC per programma-slot (meestal number.solarman_prog1_soc t/m 6). Deze worden door het systeem op 100% gezet tijdens laad-vensters en op je minimale ondergrens (bijv. 20%) tijdens ontlaad-vensters."
-    },
-    "solarman_prog_grid_charges": {
-      "name": "Solarman Grid-Charge Schakelaars",
-      "description": "De 6 entiteit-IDs voor de Grid Charge schakelaars op je omvormer (meestal switch.solarman_prog1_grid_charge t/m 6). Het systeem zet deze schakelaars fysiek op 'AAN' tijdens de goedkoopste uren om stroom van het net te trekken."
+      "name": "Nordpool Regio",
+      "description": "Bijv. NL of BE."
     }
+  },
+  "network": {
+    "8000/tcp": "Web Interface Port (Ingress)"
   }
 }
