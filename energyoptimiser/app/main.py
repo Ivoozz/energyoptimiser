@@ -5,6 +5,7 @@ import asyncio
 import os
 import json
 import logging
+import requests
 import sys
 import math
 import gc
@@ -12,7 +13,7 @@ from datetime import datetime, time, timedelta
 import pytz
 from typing import Optional, List, Dict, Any
 
-# Professional Logging
+# Professional Logging for Raspberry Pi
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL),
@@ -117,7 +118,12 @@ class Optimizer:
             logger.error(f"HA SOC Connection Error: {e}")
 
     async def fetch_prices(self):
-        logger.info("Fetching EnergyZero prices...")
+        """
+        Fetches dynamic electricity prices from EnergyZero (EPEX Spot NL).
+        EnergyZero is reliable and requires no authentication for market prices.
+        """
+        logger.info("Fetching EnergyZero (EPEX Spot NL) prices...")
+        
         now = datetime.now(pytz.UTC)
         start = now.strftime("%Y-%m-%dT00:00:00.000Z")
         end = (now + timedelta(days=1)).strftime("%Y-%m-%dT23:59:59.999Z")
@@ -266,9 +272,9 @@ class Optimizer:
                 
                 if not dry_run:
                     # Parallelizing calls for performance
-                    async with session.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_times"][i], "value": t_val}) as r: pass
-                    async with session.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_socs"][i], "value": soc}) as r: pass
-                    async with session.post(f"{base_url}/{svc}", headers=headers, json={"entity_id": self.config["solarman_prog_grid_charges"][i]}) as r: pass
+                    await session.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_times"][i], "value": t_val})
+                    await session.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_socs"][i], "value": soc})
+                    await session.post(f"{base_url}/{svc}", headers=headers, json={"entity_id": self.config["solarman_prog_grid_charges"][i]})
                 else:
                     logger.info(f"DRY RUN: Slot {i+1} -> Time: {t_val}, SOC: {soc}, Grid: {svc}")
             except Exception as e:
