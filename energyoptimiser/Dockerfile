@@ -53,6 +53,6 @@ LABEL \
     io.hass.description="Advanced energy management using Nordpool prices and Solarman 6-program control." \
     io.hass.arch="armhf|aarch64|i386|amd64" \
     io.hass.type="addon" \
-    io.hass.version="2026.3.1"
+    io.hass.version="2026.3.2"
 
 CMD [ "/run.sh" ]
