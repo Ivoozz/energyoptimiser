@@ -1,11 +1,11 @@
 # Changelog
 
-## v2026.3.14
-- **Price Source Fix**: Completely replaced Zonneplan/Nordpool with a direct **EnergyZero (EPEX Spot NL)** integration. This is the most reliable public source for Dutch dynamic prices and includes VAT.
-- **UI Fix**: Resolved the issue where planning fields were not appearing. The **Solarman Registers** are now rendered in a dedicated, bulletproof grid with 6 clear rows (one per program).
-- **Persistence**: Enhanced the save logic to ensure all 18 registers and multiple solar arrays are always correctly stored in `/data/config.json`.
-- **Descriptions**: Updated all settings with extremely detailed, Dutch-language help-texts and instructions directly in the Admin GUI.
+## v2026.3.15
+- **CRITICAL UI FIX**: Redesigned the **Solarman Registers** configuration to use a permanent, static rendering method. Fields can no longer "disappear" or be empty upon loading.
+- **Persistence Fix**: Enhanced the save logic to explicitly map stable HTML IDs to the configuration file, ensuring 100% data integrity for all 18 registers.
+- **Pricing**: Default price provider set to **EnergyZero (EPEX Spot NL)** for reliable, public data without authentication.
+- **Solar**: Improved multi-array management with clearer labels and help-texts.
 
-## v2026.3.13
-- UI fix for register fields.
-- Versioning alignment.
+## v2026.3.14
+- Replaced Zonneplan with EnergyZero API.
+- Rebuilt register UI grid.

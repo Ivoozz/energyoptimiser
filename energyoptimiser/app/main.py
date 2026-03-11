@@ -70,6 +70,13 @@ class Optimizer:
             try:
                 with open(CONFIG_PATH, "r") as f:
                     data = json.load(f)
+                    # Migrate old solar settings to array if needed
+                    if "solar_kwp" in data:
+                        data["solar_arrays"] = [{"name": "Default", "kwp": data.pop("solar_kwp"), "tilt": data.pop("solar_tilt", 35), "azimuth": data.pop("solar_azimuth", 180), "efficiency": data.pop("solar_efficiency", 0.85)}]
+                    # Ensure array lengths for prog settings
+                    for key in ["solarman_prog_times", "solarman_prog_socs", "solarman_prog_grid_charges"]:
+                        if key not in data or not isinstance(data[key], list) or len(data[key]) < 6:
+                            data[key] = DEFAULT_CONFIG[key]
                     return {**DEFAULT_CONFIG, **data}
             except Exception as e:
                 logger.error(f"Config load failed: {e}")
@@ -81,7 +88,7 @@ class Optimizer:
             os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
             with open(CONFIG_PATH, "w") as f:
                 json.dump(new_config, f, indent=2)
-            logger.info(f"Persistent config saved to {CONFIG_PATH}")
+            logger.info("Config saved.")
         except Exception as e:
             logger.error(f"Config save failed: {e}")
 
@@ -103,18 +110,11 @@ class Optimizer:
         except: pass
 
     async def fetch_prices(self):
-        """
-        Fetches dynamic electricity prices from EnergyZero (EPEX Spot NL).
-        EnergyZero is reliable and requires no authentication for market prices.
-        """
-        logger.info("Fetching EnergyZero (EPEX Spot NL) prices...")
-        
+        logger.info("Fetching EnergyZero prices...")
         now = datetime.now(pytz.UTC)
         start_date = now.strftime("%Y-%m-%dT00:00:00.000Z")
         end_date = (now + timedelta(days=1)).strftime("%Y-%m-%dT23:59:59.999Z")
-        
         url = f"https://api.energyzero.nl/v1/energyprices?fromDate={start_date}&tillDate={end_date}&interval=4&usageType=1&inclBtw=true"
-        
         try:
             session = await self.get_session()
             async with session.get(url) as response:
@@ -123,13 +123,7 @@ class Optimizer:
                     self.prices = []
                     for item in data.get("Prices", []):
                         dt = datetime.fromisoformat(item["readingDate"].replace('Z', '+00:00'))
-                        self.prices.append({
-                            "timestamp": dt,
-                            "value": float(item["price"])
-                        })
-                    logger.info(f"Fetched {len(self.prices)} EnergyZero price points.")
-                else:
-                    logger.error(f"EnergyZero API Error: {response.status}")
+                        self.prices.append({"timestamp": dt, "value": float(item["price"])})
         except Exception as e:
             logger.error(f"Price fetch failed: {e}")
 
@@ -145,7 +139,7 @@ class Optimizer:
                     data = await response.json()
                     self.weather = data.get("data", [])
         except Exception as e:
-            logger.error(f"Weather Error: {e}")
+            logger.error(f"Weather fetch failed: {e}")
 
     def calculate_solar_yield(self, radiation_wm2, hour):
         if not self.config.get("solar_enabled"): return 0
@@ -161,21 +155,17 @@ class Optimizer:
 
     def calculate_forecast(self):
         if not self.prices: return
-        
         avg_p = sum(p["value"] for p in self.prices) / len(self.prices)
         strategy = self.config.get("strategy", "Maximize Profit")
         charge_t = self.config.get("charge_threshold_pct", 85) / 100.0
         discharge_t = self.config.get("discharge_threshold_pct", 115) / 100.0
         battery_cap = self.config.get("battery_capacity_kwh", 5.0)
-        
         tz = pytz.timezone(self.timezone)
         weather_map = {w['tijd'].split(' ')[1][:2]: w for w in self.weather} if self.weather else {}
-        
         total_expected_solar_kwh = 0
         temp_data = []
         now = datetime.now(pytz.UTC)
         relevant_prices = [p for p in self.prices if p["timestamp"] >= now - timedelta(hours=1)][:24]
-
         for p in relevant_prices:
             lt = p["timestamp"].astimezone(tz)
             h_str = f"{lt.hour:02d}"
@@ -183,47 +173,23 @@ class Optimizer:
             solar_kw = self.calculate_solar_yield(rad, lt.hour)
             total_expected_solar_kwh += solar_kw
             temp_data.append({"lt": lt, "price": p["value"], "solar_kw": solar_kw, "h_str": h_str})
-
         energy_needed = battery_cap * (1 - self.current_soc/100.0)
         will_fill_from_sun = (total_expected_solar_kwh > (energy_needed * 1.1))
-        
         new_forecast = []
         for item in temp_data:
             lt, price, solar_kw = item["lt"], item["price"], item["solar_kw"]
-            action = "IDLE"
-            grid_charge = "off"
-            
+            action, grid_charge = "IDLE", "off"
             if strategy == "Maximize Profit":
                 if price <= (avg_p * charge_t):
-                    if not will_fill_from_sun:
-                        action = "CHARGE"
-                        grid_charge = "on"
-                    else:
-                        action = "WAIT FOR SUN"
-                elif price >= (avg_p * discharge_t):
-                    action = "DISCHARGE"
+                    if not will_fill_from_sun: action, grid_charge = "CHARGE", "on"
+                    else: action = "WAIT FOR SUN"
+                elif price >= (avg_p * discharge_t): action = "DISCHARGE"
             elif strategy == "Maximize Self-Consumption":
-                if self.current_soc < 15 and price <= avg_p:
-                    action = "CHARGE"
-                    grid_charge = "on"
+                if self.current_soc < 15 and price <= avg_p: action, grid_charge = "CHARGE", "on"
             elif strategy == "Zero on the Meter":
-                if price < 0:
-                    action = "CHARGE (NEG)"
-                    grid_charge = "on"
-                else:
-                    action = "AUTONOMOUS"
-                    grid_charge = "off"
-            
-            new_forecast.append({
-                "time": lt.isoformat(),
-                "hour": lt.hour,
-                "price": round(price, 4),
-                "weather": weather_map.get(item["h_str"], {}).get('vvoorsp', 'N/A'),
-                "solar_yield": round(solar_kw, 2),
-                "action": action,
-                "grid_charge": grid_charge
-            })
-        
+                if price < 0: action, grid_charge = "CHARGE (NEG)", "on"
+                else: action = "AUTONOMOUS"
+            new_forecast.append({"time": lt.isoformat(), "hour": lt.hour, "price": round(price, 4), "weather": weather_map.get(item["h_str"], {}).get('vvoorsp', 'N/A'), "solar_yield": round(solar_kw, 2), "action": action, "grid_charge": grid_charge})
         self.forecast = new_forecast
         self.last_update = datetime.now()
         self.map_slots()
@@ -232,16 +198,12 @@ class Optimizer:
     def map_slots(self):
         if not self.forecast: return
         slots = []
-        curr_act = self.forecast[0]["action"]
-        curr_grid = self.forecast[0]["grid_charge"]
-        start_h = self.forecast[0]["hour"]
-        
+        curr_act, curr_grid, start_h = self.forecast[0]["action"], self.forecast[0]["grid_charge"], self.forecast[0]["hour"]
         for h in self.forecast[1:]:
             if h["action"] != curr_act or h["grid_charge"] != curr_grid:
                 slots.append({"start": start_h, "action": curr_act, "grid_charge": curr_grid})
                 curr_act, curr_grid, start_h = h["action"], h["grid_charge"], h["hour"]
         slots.append({"start": start_h, "action": curr_act, "grid_charge": curr_grid})
-        
         while len(slots) > 6: slots.pop()
         while len(slots) < 6: slots.append({"start": (slots[-1]["start"]+1)%24, "action": "IDLE", "grid_charge": "off"})
         self.inverter_slots = slots
@@ -250,7 +212,6 @@ class Optimizer:
         token = os.getenv("SUPERVISOR_TOKEN")
         if not token or not self.inverter_slots: return
         if not self.config.get("enabled") and not dry_run: return
-        
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         base_url = "http://supervisor/core/api/services"
         for i in range(min(len(self.inverter_slots), 6)):
@@ -259,12 +220,12 @@ class Optimizer:
                 t_val = slot["start"] * 100
                 soc = 100 if (slot["action"] == "CHARGE" or slot["action"] == "AUTONOMOUS") else 20
                 svc = "switch/turn_on" if slot["grid_charge"] == "on" else "switch/turn_off"
-                
                 if not dry_run:
                     requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_times"][i], "value": t_val}, timeout=10)
                     requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_socs"][i], "value": soc}, timeout=10)
                     requests.post(f"{base_url}/{svc}", headers=headers, json={"entity_id": self.config["solarman_prog_grid_charges"][i]}, timeout=10)
-            except: pass
+            except Exception as e:
+                logger.error(f"Sync error slot {i+1}: {e}")
 
     async def run_loop(self):
         while True:
@@ -291,14 +252,7 @@ async def on_shutdown():
 
 @app.get("/api/status")
 async def get_status():
-    return {
-        "config": state.config,
-        "forecast": state.forecast,
-        "inverter_slots": state.inverter_slots,
-        "last_update": state.last_update.isoformat() if state.last_update else None,
-        "timezone": state.timezone,
-        "current_soc": state.current_soc
-    }
+    return {"config": state.config, "forecast": state.forecast, "inverter_slots": state.inverter_slots, "last_update": state.last_update.isoformat() if state.last_update else None, "timezone": state.timezone, "current_soc": state.current_soc}
 
 @app.post("/api/config")
 async def save_config(new_config: dict):
