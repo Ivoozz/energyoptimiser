@@ -1,5 +1,9 @@
 # Changelog
 
+## v2026.3.26
+- **Bugfix**: Resolved the issue where the "Simulatie Run" did not update the dashboard. Fixed a naming mismatch between the frontend and backend endpoints (`/api/test_run` vs `/api/simulate`).
+- **Optimization**: Ensured the simulation cycle correctly populates the in-memory forecast before refreshing the UI.
+
 ## v2026.3.25
 - **UI/UX**: Designed and implemented a brand new, modern, and sleek icon and logo for the application.
 - **Maintenance**: Synchronized versioning and metadata across all files.

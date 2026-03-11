@@ -15,7 +15,7 @@ from typing import Optional, List, Dict, Any
 
 # --- Configuration & Defaults ---
 CONFIG_PATH = "/data/config.json"
-VERSION = "v2026.3.25"
+VERSION = "v2026.3.26"
 
 # Professional Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -451,11 +451,11 @@ async def update_config(new_config: dict):
         asyncio.create_task(optimizer_state.run_cycle())
     return {"status": "success"}
 
-@app.post("/api/simulate")
-async def run_simulation():
-    """Run a simulation cycle without applying changes to HA (unless dry_run=False but here we force dry_run)."""
+@app.post("/api/test_run")
+async def run_test_run():
+    """Run a test cycle (simulation) without applying changes to HA."""
     await optimizer_state.run_cycle(dry_run=True)
-    return {"status": "simulation_complete"}
+    return {"status": "ok"}
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
