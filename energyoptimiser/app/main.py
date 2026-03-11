@@ -15,7 +15,7 @@ from typing import Optional, List, Dict, Any
 
 # --- Configuration & Defaults ---
 CONFIG_PATH = "/data/config.json"
-VERSION = "v2026.3.21"
+VERSION = "v2026.3.22"
 
 # Professional Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -72,7 +72,19 @@ class Optimizer:
         self.forecast = []
         self.inverter_slots = []
         self.last_update = None
-        self.timezone = pytz.timezone(os.getenv("TZ", "Europe/Amsterdam"))
+        
+        # Robust Timezone loading: Handle empty string or missing env
+        tz_env = os.getenv("TZ", "").strip()
+        if not tz_env:
+            tz_env = "Europe/Amsterdam"
+        
+        try:
+            self.timezone = pytz.timezone(tz_env)
+            logger.info(f"Using timezone: {tz_env}")
+        except pytz.exceptions.UnknownTimeZoneError:
+            logger.warning(f"Unknown timezone '{tz_env}', falling back to Europe/Amsterdam")
+            self.timezone = pytz.timezone("Europe/Amsterdam")
+
         self.current_soc = 50.0
         self._session: Optional[aiohttp.ClientSession] = None
 

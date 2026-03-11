@@ -1,7 +1,7 @@
 name: "EnergyOptimiser"
-version: "2026.3.21"
+version: "2026.3.22"
 slug: "energyoptimiser"
-description: "Professional battery energy management with Nordpool pricing and Meteoserver weather integration."
+description: "Professional battery energy management with EnergyZero EPEX NL prices and Meteoserver solar forecasting."
 url: "https://github.com/Ivoozz/energyoptimiser"
 arch:
   - aarch64
