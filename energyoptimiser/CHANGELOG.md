@@ -1,5 +1,9 @@
 # Changelog
 
+## v2026.3.24
+- **Bugfix**: Fixed the "UI not found" error by correcting the static file path in the backend to use relative container paths instead of absolute development paths.
+- **Maintenance**: Synchronized versioning across all components.
+
 ## v2026.3.23
 - **Mandate**: Internalized the strict versioning and description synchronization protocol.
 - **Maintenance**: Confirmed all metadata is consistent across config.yaml, Dockerfile, main.py, and index.html.

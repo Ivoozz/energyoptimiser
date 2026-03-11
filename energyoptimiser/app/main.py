@@ -15,7 +15,7 @@ from typing import Optional, List, Dict, Any
 
 # --- Configuration & Defaults ---
 CONFIG_PATH = "/data/config.json"
-VERSION = "v2026.3.23"
+VERSION = "v2026.3.24"
 
 # Professional Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -460,10 +460,10 @@ async def run_simulation():
 @app.get("/", response_class=HTMLResponse)
 async def index():
     try:
-        with open("/root/energyoptimiser/energyoptimiser/app/static/index.html", "r") as f:
+        with open("static/index.html", "r") as f:
             return f.read()
     except FileNotFoundError:
-        return HTMLResponse("UI not found.", status_code=404)
+        return HTMLResponse("UI not found. Check static directory structure.", status_code=404)
 
 if __name__ == "__main__":
     import uvicorn
