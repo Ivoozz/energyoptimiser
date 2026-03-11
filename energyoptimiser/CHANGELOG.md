@@ -1,14 +1,14 @@
 # Changelog
 
-## v2026.3.6
-- **Feature**: Support for **Multiple Solar Arrays**. You can now add multiple sets of panels (e.g., front and back of the house) with individual tilt and azimuth settings.
-- **Feature**: Integrated **Test Optimalisatie (Dry Run)** button. Test your configuration and see the planned actions on the dashboard without sending any commands to your inverter.
-- **Feature**: Full control over **Program SOC and Grid-Charge registers**. All 18 Solarman registers (6x Time, 6x SOC, 6x Grid Charge) are now configurable in the UI.
-- **Algorithm**: The decision-making engine now explicitly uses the summed yield of all solar arrays to intelligently suppress grid-charging if the sun can fill the battery.
-- **Safety**: Strictly uses **percentages (SOC)** for all battery calculations; voltage-based logic is explicitly avoided for better compatibility and safety.
-- **UI**: Completely redesigned settings page with dynamic array management and extensive help-texts.
+## v2026.3.7
+- **Feature**: **Persistence Guaranteed**. Investigated and verified that all configuration is stored in the `/data` partition, which is preserved by the Home Assistant Supervisor across add-on updates. 
+- **Feature**: **Grid-Charge Slot Transparency**. Added per-program Grid Charge status to the dashboard and forecast tables.
+- **Feature**: **Dry Run testing**. Test your configuration without sending actual Modbus commands to your inverter.
+- **Enhancement**: Expanded UI settings to include all 18 Solarman registers (Time, SOC, Grid-Charge) for 6 programs.
+- **Enhancement**: Support for multiple solar arrays with individual parameters.
+- **Reliability**: Strictly SOC-based logic; voltage-based control is excluded for stability.
 
-## v2026.3.5
-- Optimization for Raspberry Pi.
-- Multi-Stage Docker build.
-- Reduced memory footprint and SD card protection.
+## v2026.3.6
+- Multiple Solar Array support.
+- Manual dry-run test mode.
+- Advanced configuration UI.

@@ -54,8 +54,7 @@ DEFAULT_CONFIG = {
     "meteoserver_location": "Utrecht",
     "solar_enabled": False,
     "solar_arrays": [
-        {"name": "Zuidkant", "kwp": 4.0, "tilt": 35, "azimuth": 180, "efficiency": 0.85},
-        {"name": "Noordkant", "kwp": 2.0, "tilt": 35, "azimuth": 0, "efficiency": 0.85}
+        {"name": "Hoofd-set", "kwp": 4.0, "tilt": 35, "azimuth": 180, "efficiency": 0.85}
     ]
 }
 
@@ -79,13 +78,18 @@ class Optimizer:
         self.session: Optional[aiohttp.ClientSession] = None
 
     def load_config(self):
+        """
+        Loads configuration from persistent /data directory.
+        The /data directory is preserved across add-on updates.
+        """
         if os.path.exists(CONFIG_PATH):
             try:
                 with open(CONFIG_PATH, "r") as f:
                     data = json.load(f)
-                    # Migrate old solar settings to array if needed
+                    # Support legacy solar settings
                     if "solar_kwp" in data:
                         data["solar_arrays"] = [{"name": "Default", "kwp": data.pop("solar_kwp"), "tilt": data.pop("solar_tilt", 35), "azimuth": data.pop("solar_azimuth", 180), "efficiency": data.pop("solar_efficiency", 0.85)}]
+                    # Merge with defaults to ensure new keys are present
                     return {**DEFAULT_CONFIG, **data}
             except Exception as e:
                 logger.error(f"Config load failed: {e}")
@@ -96,7 +100,7 @@ class Optimizer:
         try:
             with open(CONFIG_PATH, "w") as f:
                 json.dump(new_config, f, indent=2)
-            logger.info("Config saved.")
+            logger.info(f"Persistent config saved to {CONFIG_PATH}")
         except Exception as e:
             logger.error(f"Config save failed: {e}")
 
@@ -147,7 +151,6 @@ class Optimizer:
         for array in self.config.get("solar_arrays", []):
             kwp = array.get("kwp", 0)
             tilt = math.radians(array.get("tilt", 35))
-            # Azimuth calculation simplified: South is 180
             azimuth_factor = math.cos(math.radians(array.get("azimuth", 180) - 180))
             pr = array.get("efficiency", 0.85)
             time_factor = max(0, 1 - abs(hour - 12) / 8) 
@@ -183,14 +186,21 @@ class Optimizer:
         for item in temp_data:
             lt, price, solar_kw = item["lt"], item["price"], item["solar_kw"]
             action = "IDLE"
+            grid_charge = "off"
             
             if strategy == "Maximize Profit":
                 if price <= (avg_p * charge_t):
-                    action = "CHARGE" if not will_fill_from_sun else "WAIT FOR SUN"
+                    if not will_fill_from_sun:
+                        action = "CHARGE"
+                        grid_charge = "on"
+                    else:
+                        action = "WAIT FOR SUN"
                 elif price >= (avg_p * discharge_t):
                     action = "DISCHARGE"
             elif strategy == "Maximize Self-Consumption":
-                if self.current_soc < 10 and price <= (avg_p * 0.7): action = "CHARGE"
+                if self.current_soc < 10 and price <= (avg_p * 0.7):
+                    action = "CHARGE"
+                    grid_charge = "on"
             
             new_forecast.append({
                 "time": lt.isoformat(),
@@ -198,7 +208,8 @@ class Optimizer:
                 "price": round(price, 4),
                 "weather": weather_map.get(item["h_str"], {}).get('vvoorsp', 'N/A'),
                 "solar_yield": round(solar_kw, 2),
-                "action": action
+                "action": action,
+                "grid_charge": grid_charge
             })
         
         self.forecast = new_forecast
@@ -210,22 +221,23 @@ class Optimizer:
         if not self.forecast: return
         slots = []
         curr_act = self.forecast[0]["action"]
+        curr_grid = self.forecast[0]["grid_charge"]
         start_h = self.forecast[0]["hour"]
+        
         for h in self.forecast[1:]:
-            if h["action"] != curr_act:
-                slots.append({"start": start_h, "action": curr_act})
-                curr_act, start_h = h["action"], h["hour"]
-        slots.append({"start": start_h, "action": curr_act})
+            if h["action"] != curr_act or h["grid_charge"] != curr_grid:
+                slots.append({"start": start_h, "action": curr_act, "grid_charge": curr_grid})
+                curr_act, curr_grid, start_h = h["action"], h["grid_charge"], h["hour"]
+        slots.append({"start": start_h, "action": curr_act, "grid_charge": curr_grid})
+        
         while len(slots) > 6: slots.pop()
-        while len(slots) < 6: slots.append({"start": (slots[-1]["start"]+1)%24, "action": "IDLE"})
+        while len(slots) < 6: slots.append({"start": (slots[-1]["start"]+1)%24, "action": "IDLE", "grid_charge": "off"})
         self.inverter_slots = slots
 
     async def apply_to_ha(self, dry_run=False):
         token = os.getenv("SUPERVISOR_TOKEN")
         if not token or not self.inverter_slots: return
         if not self.config.get("enabled") and not dry_run: return
-        
-        if dry_run: logger.info("DRY RUN: No actual changes will be sent to Home Assistant.")
         
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         base_url = "http://supervisor/core/api/services"
@@ -234,16 +246,15 @@ class Optimizer:
             try:
                 t_val = slot["start"] * 100
                 soc = 100 if slot["action"] == "CHARGE" else 20
-                svc = "switch/turn_on" if slot["action"] == "CHARGE" else "switch/turn_off"
+                svc = "switch/turn_on" if slot["grid_charge"] == "on" else "switch/turn_off"
                 
                 if not dry_run:
                     requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_times"][i], "value": t_val}, timeout=10)
                     requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_socs"][i], "value": soc}, timeout=10)
                     requests.post(f"{base_url}/{svc}", headers=headers, json={"entity_id": self.config["solarman_prog_grid_charges"][i]}, timeout=10)
                 else:
-                    logger.info(f"Dry Run Slot {i+1}: Start={t_val}, SOC={soc}, Action={svc} for {self.config['solarman_prog_times'][i]}")
-            except Exception as e:
-                logger.error(f"Sync error: {e}")
+                    logger.info(f"Dry Run Slot {i+1}: {t_val}, SOC={soc}, Grid={slot['grid_charge']}")
+            except: pass
 
     async def run_loop(self):
         while True:
