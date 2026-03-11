@@ -1,7 +1,15 @@
 #!/usr/bin/with-contenv bashio
 
-echo "Starting EnergyOptimiser Add-on..."
+bashio::log.info "Starting EnergyOptimiser Add-on..."
 
-# Start the Python Backend (FastAPI)
+# Map options from config.yaml to environment variables if needed
+# or let main.py read /data/options.json directly.
+
+# Set the timezone if available
+TZ=$(bashio::info.timezone)
+export TZ=$TZ
+bashio::log.info "Using timezone: ${TZ}"
+
+# Start the Python Backend
 cd /app
-python3 main.py
+exec python3 main.py
