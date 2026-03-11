@@ -15,7 +15,7 @@ from typing import Optional, List, Dict, Any
 
 # --- Configuration & Defaults ---
 CONFIG_PATH = "/data/config.json"
-VERSION = "v2026.3.27"
+VERSION = "v2026.3.28"
 
 # Professional Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -35,6 +35,8 @@ DEFAULT_CONFIG = {
     "charge_threshold_pct": 85.0,
     "discharge_threshold_pct": 115.0,
     "battery_capacity_kwh": 5.0,
+    "battery_min_soc": 20.0,
+    "battery_max_soc": 100.0,
     "max_charge_rate_kw": 2.5,
     "update_interval_minutes": 60,
     "solarman_battery_soc": "sensor.solarman_battery_soc",
@@ -111,7 +113,7 @@ class Optimizer:
     def save_config(self, new_config: Dict[str, Any]):
         """Save configuration to file."""
         # Clean up input and ensure types
-        for key in ["charge_threshold_pct", "discharge_threshold_pct", "battery_capacity_kwh", "max_charge_rate_kw"]:
+        for key in ["charge_threshold_pct", "discharge_threshold_pct", "battery_capacity_kwh", "max_charge_rate_kw", "battery_min_soc", "battery_max_soc"]:
             if key in new_config:
                 new_config[key] = float(new_config[key])
         
@@ -372,11 +374,14 @@ class Optimizer:
                 time_val = slot["start"] * 100
                 
                 # Determine target SOC based on action
-                target_soc = 20 # Default floor
+                min_soc = float(self.config.get("battery_min_soc", 20.0))
+                max_soc = float(self.config.get("battery_max_soc", 100.0))
+                
+                target_soc = min_soc # Default floor
                 if "CHARGE" in slot["action"]:
-                    target_soc = 100
+                    target_soc = max_soc
                 elif slot["action"] == "AUTONOMOUS":
-                    target_soc = 50
+                    target_soc = (min_soc + max_soc) / 2 # Mid-point for autonomous
                 
                 grid_service = "switch/turn_on" if slot["grid_charge"] == "on" else "switch/turn_off"
                 

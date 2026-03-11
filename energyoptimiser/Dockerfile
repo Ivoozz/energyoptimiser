@@ -62,6 +62,6 @@ LABEL \
     io.hass.description="Professional battery energy management with EnergyZero EPEX NL prices and Meteoserver solar forecasting." \
     io.hass.arch="armhf|aarch64|i386|amd64" \
     io.hass.type="addon" \
-    io.hass.version="2026.3.27"
+    io.hass.version="2026.3.28"
 
 CMD [ "/run.sh" ]
