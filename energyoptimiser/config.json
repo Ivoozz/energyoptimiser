@@ -1,0 +1,31 @@
+{
+  "name": "EnergyOptimiser",
+  "version": "1.0.0",
+  "slug": "energyoptimiser",
+  "description": "Smart battery charging/discharging based on Nordpool prices and Solarman integration.",
+  "arch": ["amd64", "aarch64", "armv7"],
+  "startup": "application",
+  "boot": "auto",
+  "ingress": true,
+  "ingress_port": 8000,
+  "panel_icon": "mdi:battery-charging-high",
+  "panel_title": "EnergyOptimiser",
+  "options": {
+    "log_level": "info",
+    "solarman_battery_soc": "sensor.solarman_battery_soc",
+    "solarman_charge_switch": "switch.solarman_grid_charge",
+    "solarman_discharge_limit": "number.solarman_battery_discharge_limit",
+    "battery_capacity_kwh": 5.0,
+    "max_charge_rate_kw": 2.5,
+    "strategy": "Maximize Profit"
+  },
+  "schema": {
+    "log_level": "list(none|fatal|error|warning|info|debug|trace)?",
+    "solarman_battery_soc": "str",
+    "solarman_charge_switch": "str",
+    "solarman_discharge_limit": "str",
+    "battery_capacity_kwh": "float",
+    "max_charge_rate_kw": "float",
+    "strategy": "list(Maximize Profit|Maximize Self-Consumption)"
+  }
+}
