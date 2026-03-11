@@ -1,5 +1,5 @@
 name: "EnergyOptimiser"
-version: "2026.3.8"
+version: "2026.3.9"
 slug: "energyoptimiser"
 description: "Professional battery energy management with Nordpool pricing and Meteoserver weather integration."
 url: "https://github.com/Ivoozz/energyoptimiser"

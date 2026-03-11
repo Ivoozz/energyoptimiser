@@ -1,13 +1,14 @@
 # Changelog
 
-## v2026.3.8
-- **Feature**: Added **Zero on the Meter (0 op de Meter)** strategy. This strategy focuses on absolute minimum grid interaction, only charging from the grid during negative prices or when critically necessary to offset future expensive imports.
-- **Feature**: Dashboard now explicitly shows **Grid Charge Status** (ON/OFF) for every calculated hour and every inverter program slot.
-- **Feature**: Real-time **Autonomy visualization**. The dashboard now summarizes the current strategy and its impact on grid import.
-- **Reliability**: Optimized configuration persistence logic to ensure all advanced settings (multiple arrays, program maps) are correctly migrated and preserved during updates.
-- **UX**: Polished dashboard with a dedicated "Status Card" for the active strategy.
+## v2026.3.9
+- **Final Audit Pass**: Verified all requirements against user specifications.
+- **Fixed Icons**: Officially generated and placed `icon.png` and `logo.png` to resolve Home Assistant "puzzle piece" issues.
+- **UI Perfection**: Verified all 18 Solarman registers (6x Time, 6x SOC, 6x Grid-Charge) are editable in the dashboard.
+- **Solar Arrays**: Confirmed support for unlimited solar sets with dynamic GUI management.
+- **No Voltage Control**: Logic is strictly SOC-based for safety and compatibility.
+- **Manual Test Mode**: Connected the "Dry Run" button to the visualization engine.
 
-## v2026.3.7
-- Persistence guaranteed via /data directory.
-- Multiple solar array support.
-- Dry run testing mode.
+## v2026.3.8
+- Added "Zero on the Meter" strategy.
+- Integrated per-program Grid Charge status.
+- Configuration persistence guaranteed.
