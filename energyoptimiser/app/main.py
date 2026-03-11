@@ -27,6 +27,7 @@ class OptimizerState:
             with open("/data/options.json") as f:
                 return json.load(f)
         return {
+            "enabled": True,
             "nordpool_area": "NL",
             "currency": "EUR",
             "strategy": "Maximize Profit",
@@ -61,10 +62,9 @@ class OptimizerState:
         for p in self.prices[:24]:
             action = "IDLE"
             if strategy == "Maximize Profit":
-                # Grid Charge if price is in the lowest 25% of the day
                 sorted_prices = sorted([pr.value for pr in self.prices[:24]])
-                low_threshold = sorted_prices[5] # roughly lowest 6 hours
-                high_threshold = sorted_prices[-6] # roughly highest 6 hours
+                low_threshold = sorted_prices[5] if len(sorted_prices) > 5 else 0
+                high_threshold = sorted_prices[-6] if len(sorted_prices) > 5 else 999
                 
                 if p.value <= low_threshold:
                     action = "CHARGE"
@@ -85,43 +85,32 @@ class OptimizerState:
 
     async def run_optimization_loop(self):
         while True:
-            logger.info("Starting optimization cycle...")
+            logger.info("Checking automation status...")
             self.options = self.load_options()
-            await self.fetch_prices()
-            self.calculate_forecast()
-            await self.apply_solarman_programs()
+            
+            if not self.options.get("enabled", True):
+                logger.info("EnergyOptimiser is DISABLED. Skipping cycle.")
+                self.current_action = "DISABLED"
+            else:
+                logger.info("Starting optimization cycle...")
+                await self.fetch_prices()
+                self.calculate_forecast()
+                await self.apply_solarman_programs()
             
             interval = self.options.get("update_interval_minutes", 60)
-            logger.info(f"Optimization complete. Sleeping for {interval} minutes.")
+            logger.info(f"Cycle complete. Waiting {interval} minutes.")
             await asyncio.sleep(interval * 60)
 
     async def apply_solarman_programs(self):
-        """
-        Maps the 24-hour forecast to the 6 Solarman program slots.
-        Solarman (Deye/Sunsynk) uses 6 fixed time slots.
-        We will attempt to find the optimal windows for these slots.
-        """
+        if not self.options.get("enabled", True):
+            return
+
         token = os.getenv("SUPERVISOR_TOKEN")
         if not token or not self.forecast:
             logger.warning("Missing token or forecast. Skipping HA actions.")
             return
 
-        # Find continuous blocks of CHARGE or DISCHARGE
-        # This is a complex mapping, for now we will simplify and 
-        # just set the first 6 hours of the forecast into the 6 slots if they change
-        
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        }
-        
-        # Mapping logic for 6 slots:
-        # We group the 24 hours into 6 blocks or specific event windows.
-        # For simplicity in this v1.2, we target the next 6 state changes.
-        
-        # Example call to HA:
-        # url = "http://supervisor/core/api/services/number/set_value"
-        # payload = {"entity_id": self.options['solarman_prog_socs'][0], "value": 100}
+        # Placeholder for real HA API calls to set program entities
         pass
 
 state = OptimizerState()
@@ -133,6 +122,7 @@ async def startup_event():
 @app.get("/api/status")
 async def get_status():
     return {
+        "enabled": state.options.get("enabled", True),
         "current_action": state.current_action,
         "last_update": state.last_update.isoformat() if state.last_update else None,
         "strategy": state.options.get("strategy"),
