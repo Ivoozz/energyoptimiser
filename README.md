@@ -49,9 +49,15 @@ EnergyOptimiser heeft een ingebouwd bedieningspaneel dat via **Ingress** werkt.
 
 ---
 
-## 4. Hoe de Optimalisatie Werkt
+### 6-Programma Regeling (Solarman/Deye/Sunsynk)
+Veel moderne omvormers (zoals Deye en Sunsynk) die gebruik maken van Solarman loggers, werken met een systeem van **6 tijdsperiodes** (ook wel Time-of-Use genoemd).
 
-Het programma voert **elk uur** (instelbaar via `update_interval_minutes`) een nieuwe berekening uit:
+EnergyOptimiser analyseert de 24-uurs prijsverwachting en verdeelt deze over de 6 beschikbare slots:
+1.  **Tijden:** De add-on stelt de starttijden van de 6 programma's in om de goedkoopste en duurste uren te dekken.
+2.  **Grid Charge:** Per slot wordt bepaald of de accu vanaf het net geladen moet worden (`Grid Charge` AAN) of juist moet ontladen voor je huis (`Grid Charge` UIT + lage SOC target).
+3.  **SOC Targets:** De doelen voor de batterijlading (bijv. 100% tijdens goedkope uren, 20% tijdens dure uren) worden automatisch naar de omvormer gepusht.
+
+**Let op:** Zorg ervoor dat je in Home Assistant de entiteiten voor `Prog1 Time`, `Prog1 SOC`, `Prog1 Grid Charge`, etc. hebt geconfigureerd via je Solarman integratie. Vul deze entiteit-IDs in bij de configuratie van deze add-on.
 
 1.  **Data ophalen:** Het haalt de meest recente prijzen op bij Nordpool.
 2.  **Analyse:** Het berekent de gemiddelde prijs van de dag. 

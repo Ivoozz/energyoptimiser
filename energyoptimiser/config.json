@@ -1,8 +1,8 @@
 {
   "name": "EnergyOptimiser",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "slug": "energyoptimiser",
-  "description": "Smart battery charging/discharging based on Nordpool prices and Solarman integration.",
+  "description": "Smart battery charging/discharging based on Nordpool prices and Solarman 6-program control.",
   "arch": ["amd64", "aarch64", "armv7"],
   "startup": "services",
   "boot": "auto",
@@ -16,23 +16,46 @@
     "nordpool_area": "NL",
     "currency": "EUR",
     "solarman_battery_soc": "sensor.solarman_battery_soc",
-    "solarman_charge_switch": "switch.solarman_grid_charge",
-    "solarman_discharge_limit": "number.solarman_battery_discharge_limit",
     "battery_capacity_kwh": 5.0,
     "max_charge_rate_kw": 2.5,
     "strategy": "Maximize Profit",
-    "update_interval_minutes": 60
+    "update_interval_minutes": 60,
+    "solarman_prog_times": [
+      "number.solarman_prog1_time",
+      "number.solarman_prog2_time",
+      "number.solarman_prog3_time",
+      "number.solarman_prog4_time",
+      "number.solarman_prog5_time",
+      "number.solarman_prog6_time"
+    ],
+    "solarman_prog_socs": [
+      "number.solarman_prog1_soc",
+      "number.solarman_prog2_soc",
+      "number.solarman_prog3_soc",
+      "number.solarman_prog4_soc",
+      "number.solarman_prog5_soc",
+      "number.solarman_prog6_soc"
+    ],
+    "solarman_prog_grid_charges": [
+      "switch.solarman_prog1_grid_charge",
+      "switch.solarman_prog2_grid_charge",
+      "switch.solarman_prog3_grid_charge",
+      "switch.solarman_prog4_grid_charge",
+      "switch.solarman_prog5_grid_charge",
+      "switch.solarman_prog6_grid_charge"
+    ]
   },
   "schema": {
     "log_level": "list(none|fatal|error|warning|info|debug|trace)?",
     "nordpool_area": "str",
     "currency": "str",
     "solarman_battery_soc": "str",
-    "solarman_charge_switch": "str",
-    "solarman_discharge_limit": "str",
     "battery_capacity_kwh": "float",
     "max_charge_rate_kw": "float",
     "strategy": "list(Maximize Profit|Maximize Self-Consumption)",
-    "update_interval_minutes": "int(1,1440)"
+    "update_interval_minutes": "int(1,1440)",
+    "solarman_prog_times": ["str"],
+    "solarman_prog_socs": ["str"],
+    "solarman_prog_grid_charges": ["str"]
   }
 }

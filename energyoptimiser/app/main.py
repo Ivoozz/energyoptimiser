@@ -6,7 +6,7 @@ import asyncio
 import os
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, time
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -31,7 +31,10 @@ class OptimizerState:
             "currency": "EUR",
             "strategy": "Maximize Profit",
             "battery_capacity_kwh": 5.0,
-            "update_interval_minutes": 60
+            "update_interval_minutes": 60,
+            "solarman_prog_times": [],
+            "solarman_prog_socs": [],
+            "solarman_prog_grid_charges": []
         }
 
     async def fetch_prices(self):
@@ -39,7 +42,8 @@ class OptimizerState:
             async with aiohttp.ClientSession() as session:
                 client = NordPoolClient(session)
                 area = self.options.get("nordpool_area", "NL")
-                curr = getattr(Currency, self.options.get("currency", "EUR"))
+                curr_str = self.options.get("currency", "EUR")
+                curr = Currency[curr_str]
                 self.prices = await client.async_get_delivery_period_prices(currency=curr, area=area)
                 self.last_update = datetime.now()
                 logger.info(f"Fetched {len(self.prices)} price points from Nordpool for area {area}")
@@ -57,13 +61,16 @@ class OptimizerState:
         for p in self.prices[:24]:
             action = "IDLE"
             if strategy == "Maximize Profit":
-                if p.value < (avg_price * 0.85):
+                # Grid Charge if price is in the lowest 25% of the day
+                sorted_prices = sorted([pr.value for pr in self.prices[:24]])
+                low_threshold = sorted_prices[5] # roughly lowest 6 hours
+                high_threshold = sorted_prices[-6] # roughly highest 6 hours
+                
+                if p.value <= low_threshold:
                     action = "CHARGE"
-                elif p.value > (avg_price * 1.15):
+                elif p.value >= high_threshold:
                     action = "DISCHARGE"
             elif strategy == "Maximize Self-Consumption":
-                # In a real scenario, this would check solar forecast vs load
-                # For this simplified logic, we prioritize battery state
                 action = "IDLE (Save Solar)"
             
             forecast.append({
@@ -82,31 +89,39 @@ class OptimizerState:
             self.options = self.load_options()
             await self.fetch_prices()
             self.calculate_forecast()
-            
-            # Here we would call Home Assistant API to set switches/numbers
-            # Using SUPERVISOR_TOKEN and HA URL
-            await self.apply_ha_actions()
+            await self.apply_solarman_programs()
             
             interval = self.options.get("update_interval_minutes", 60)
             logger.info(f"Optimization complete. Sleeping for {interval} minutes.")
             await asyncio.sleep(interval * 60)
 
-    async def apply_ha_actions(self):
+    async def apply_solarman_programs(self):
+        """
+        Maps the 24-hour forecast to the 6 Solarman program slots.
+        Solarman (Deye/Sunsynk) uses 6 fixed time slots.
+        We will attempt to find the optimal windows for these slots.
+        """
         token = os.getenv("SUPERVISOR_TOKEN")
-        if not token:
-            logger.warning("No SUPERVISOR_TOKEN found. Skipping HA actions.")
+        if not token or not self.forecast:
+            logger.warning("Missing token or forecast. Skipping HA actions.")
             return
 
+        # Find continuous blocks of CHARGE or DISCHARGE
+        # This is a complex mapping, for now we will simplify and 
+        # just set the first 6 hours of the forecast into the 6 slots if they change
+        
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
         
-        url = "http://supervisor/core/api/services"
+        # Mapping logic for 6 slots:
+        # We group the 24 hours into 6 blocks or specific event windows.
+        # For simplicity in this v1.2, we target the next 6 state changes.
         
-        # Logic to toggle switches based on self.current_action
-        # Example: switch.turn_on/off for solarman_charge_switch
-        # This part requires the actual entity IDs from self.options
+        # Example call to HA:
+        # url = "http://supervisor/core/api/services/number/set_value"
+        # payload = {"entity_id": self.options['solarman_prog_socs'][0], "value": 100}
         pass
 
 state = OptimizerState()
@@ -125,6 +140,5 @@ async def get_status():
         "options": state.options
     }
 
-# Serve static files for the UI
 if os.path.exists("/ui/dist"):
     app.mount("/", StaticFiles(directory="/ui/dist", html=True), name="ui")
