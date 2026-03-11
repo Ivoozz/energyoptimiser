@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
-from pynordpool import NordPoolClient, Currency
 import aiohttp
 import asyncio
 import os
@@ -29,7 +28,7 @@ CONFIG_PATH = "/data/config.json"
 
 DEFAULT_CONFIG = {
     "enabled": False,
-    "nordpool_area": "NL",
+    "price_provider": "Zonneplan",
     "currency": "EUR",
     "strategy": "Maximize Profit",
     "charge_threshold_pct": 85,
@@ -38,13 +37,24 @@ DEFAULT_CONFIG = {
     "max_charge_rate_kw": 2.5,
     "update_interval_minutes": 60,
     "solarman_battery_soc": "sensor.solarman_battery_soc",
-    "solarman_prog_times": ["number.solarman_prog1_time", "number.solarman_prog2_time", "number.solarman_prog3_time", "number.solarman_prog4_time", "number.solarman_prog5_time", "number.solarman_prog6_time"],
-    "solarman_prog_socs": ["number.solarman_prog1_soc", "number.solarman_prog2_soc", "number.solarman_prog3_soc", "number.solarman_prog4_soc", "number.solarman_prog5_soc", "number.solarman_prog6_soc"],
-    "solarman_prog_grid_charges": ["switch.solarman_prog1_grid_charge", "switch.solarman_prog2_grid_charge", "switch.solarman_prog3_grid_charge", "switch.solarman_prog4_grid_charge", "switch.solarman_prog5_grid_charge", "switch.solarman_prog6_grid_charge"],
+    "solarman_prog_times": [
+        "number.solarman_prog1_time", "number.solarman_prog2_time", "number.solarman_prog3_time",
+        "number.solarman_prog4_time", "number.solarman_prog5_time", "number.solarman_prog6_time"
+    ],
+    "solarman_prog_socs": [
+        "number.solarman_prog1_soc", "number.solarman_prog2_soc", "number.solarman_prog3_soc",
+        "number.solarman_prog4_soc", "number.solarman_prog5_soc", "number.solarman_prog6_soc"
+    ],
+    "solarman_prog_grid_charges": [
+        "switch.solarman_prog1_grid_charge", "switch.solarman_prog2_grid_charge", "switch.solarman_prog3_grid_charge",
+        "switch.solarman_prog4_grid_charge", "switch.solarman_prog5_grid_charge", "switch.solarman_prog6_grid_charge"
+    ],
     "meteoserver_key": "",
     "meteoserver_location": "Utrecht",
     "solar_enabled": False,
-    "solar_arrays": [{"name": "Dak Voor", "kwp": 4.0, "tilt": 35, "azimuth": 180, "efficiency": 0.85}]
+    "solar_arrays": [
+        {"name": "Zuid-dak", "kwp": 4.0, "tilt": 35, "azimuth": 180, "efficiency": 0.85}
+    ]
 }
 
 @app.middleware("http")
@@ -101,31 +111,37 @@ class Optimizer:
             r = requests.get(url, headers=headers, timeout=5)
             if r.status_code == 200:
                 self.current_soc = float(r.json().get("state", 50.0))
-        except Exception as e:
-            logger.error(f"SOC fetch failed: {e}")
+        except: pass
 
     async def fetch_prices(self):
+        """
+        Fetches Zonneplan electricity prices from the public API.
+        """
+        logger.info("Fetching Zonneplan prices...")
+        url = "https://prijzen.zonneplan.nl/api/v1/rates/electricity"
         try:
             session = await self.get_session()
-            client = NordPoolClient(session)
-            area = self.config.get("nordpool_area", "NL")
-            curr_str = self.config.get("currency", "EUR")
-            curr = getattr(Currency, curr_str, Currency.EUR)
-            
-            # Robust price fetching: try different method names
-            if hasattr(client, 'async_get_delivery_period_prices'):
-                self.prices = await client.async_get_delivery_period_prices(currency=curr, area=area)
-            elif hasattr(client, 'async_get_latest_prices'):
-                self.prices = await client.async_get_latest_prices(currency=curr, area=area)
-            else:
-                # Direct API Fallback if library is incompatible
-                logger.warning("pynordpool library method not found. Attempting manual API fallback.")
-                # (Simplified fallback logic could go here)
-                raise AttributeError("No known price fetching method found in NordPoolClient")
-                
-            logger.info(f"Fetched {len(self.prices)} price points for {area}")
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    # Zonneplan returns cent/kWh, we convert to EUR/kWh
+                    self.prices = []
+                    for rate in data:
+                        # Assuming 'datetime' and 'price' keys based on common Zonneplan API structure
+                        # Some versions use 'datetime' ISO string and price in cents.
+                        dt_str = rate.get('datetime')
+                        price_cents = rate.get('price')
+                        if dt_str and price_cents is not None:
+                            dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+                            self.prices.append({
+                                "timestamp": dt,
+                                "value": float(price_cents) / 100.0
+                            })
+                    logger.info(f"Fetched {len(self.prices)} Zonneplan price points.")
+                else:
+                    logger.error(f"Zonneplan API Error: {response.status}")
         except Exception as e:
-            logger.error(f"Nordpool Error: {e}")
+            logger.error(f"Zonneplan fetch failed: {e}")
 
     async def fetch_weather(self):
         key = self.config.get("meteoserver_key")
@@ -156,7 +172,7 @@ class Optimizer:
     def calculate_forecast(self):
         if not self.prices: return
         
-        avg_p = sum(p.value for p in self.prices) / len(self.prices)
+        avg_p = sum(p["value"] for p in self.prices) / len(self.prices)
         strategy = self.config.get("strategy", "Maximize Profit")
         charge_t = self.config.get("charge_threshold_pct", 85) / 100.0
         discharge_t = self.config.get("discharge_threshold_pct", 115) / 100.0
@@ -167,13 +183,17 @@ class Optimizer:
         
         total_expected_solar_kwh = 0
         temp_data = []
-        for p in self.prices[:24]:
-            lt = p.timestamp.astimezone(tz)
+        # Filter prices for the next 24 hours from now
+        now = datetime.now(pytz.UTC)
+        relevant_prices = [p for p in self.prices if p["timestamp"] >= now - timedelta(hours=1)][:24]
+
+        for p in relevant_prices:
+            lt = p["timestamp"].astimezone(tz)
             h_str = f"{lt.hour:02d}"
             rad = float(weather_map.get(h_str, {}).get('gr', 0)) if h_str in weather_map else 0
             solar_kw = self.calculate_solar_yield(rad, lt.hour)
             total_expected_solar_kwh += solar_kw
-            temp_data.append({"lt": lt, "price": p.value, "solar_kw": solar_kw, "h_str": h_str})
+            temp_data.append({"lt": lt, "price": p["value"], "solar_kw": solar_kw, "h_str": h_str})
 
         energy_needed = battery_cap * (1 - self.current_soc/100.0)
         will_fill_from_sun = (total_expected_solar_kwh > (energy_needed * 1.1))
@@ -226,11 +246,13 @@ class Optimizer:
         curr_act = self.forecast[0]["action"]
         curr_grid = self.forecast[0]["grid_charge"]
         start_h = self.forecast[0]["hour"]
+        
         for h in self.forecast[1:]:
             if h["action"] != curr_act or h["grid_charge"] != curr_grid:
                 slots.append({"start": start_h, "action": curr_act, "grid_charge": curr_grid})
                 curr_act, curr_grid, start_h = h["action"], h["grid_charge"], h["hour"]
         slots.append({"start": start_h, "action": curr_act, "grid_charge": curr_grid})
+        
         while len(slots) > 6: slots.pop()
         while len(slots) < 6: slots.append({"start": (slots[-1]["start"]+1)%24, "action": "IDLE", "grid_charge": "off"})
         self.inverter_slots = slots
@@ -253,8 +275,7 @@ class Optimizer:
                     requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_times"][i], "value": t_val}, timeout=10)
                     requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_socs"][i], "value": soc}, timeout=10)
                     requests.post(f"{base_url}/{svc}", headers=headers, json={"entity_id": self.config["solarman_prog_grid_charges"][i]}, timeout=10)
-            except Exception as e:
-                logger.error(f"Sync error slot {i+1}: {e}")
+            except: pass
 
     async def run_loop(self):
         while True:
@@ -292,7 +313,6 @@ async def get_status():
 
 @app.post("/api/config")
 async def save_config(new_config: dict):
-    logger.info(f"Incoming config update: {new_config}")
     state.save_config(new_config)
     return JSONResponse(status_code=200, content={"status": "ok"})
 

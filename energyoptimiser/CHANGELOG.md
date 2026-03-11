@@ -1,17 +1,13 @@
 # Changelog
 
+## v2026.3.12
+- **Integration**: Migrated from Nordpool to **Zonneplan API** for more reliable and tax-inclusive Dutch energy prices.
+- **Feature**: Full support for **Multiple Solar Arrays** with active yield forecasting integrated into the logic.
+- **Feature**: Added **Zero on the Meter** strategy for minimum grid interaction.
+- **Admin GUI**: Redesigned the entire Settings page with exhaustive descriptions and help-texts for every variable.
+- **Bugfix**: Fixed checkbox saving issues in the Admin GUI.
+- **Performance**: Optimized for Raspberry Pi with multi-stage builds and memory management.
+
 ## v2026.3.11
-- **Bugfix**: Fixed Admin GUI save logic (checkboxes were not always saving correctly).
-- **Bugfix**: Resolved Nordpool connection error by adding fallback methods for `NordPoolClient`.
-- **Improvement**: Updated Ingress middleware for better sub-path handling.
-- **Maintenance**: Incremented version to restore Home Assistant update functionality.
-
-## v2026.3.10
-- Every single variable is now configurable via the Admin Web UI.
-- Detailed instructions and descriptions for every variable in the GUI.
-- Added per-slot Grid Charge visualization.
-- Dynamic Solar Array management.
-
-## v2026.3.9
-- Final Pass icons fix.
-- Manual dry-run mode.
+- Fixed Admin GUI save logic.
+- Resolved Nordpool attribute error fallback.
