@@ -32,6 +32,8 @@ class OptimizerState:
             "currency": "EUR",
             "strategy": "Maximize Profit",
             "battery_capacity_kwh": 5.0,
+            "charge_threshold_pct": 85,
+            "discharge_threshold_pct": 115,
             "update_interval_minutes": 60,
             "solarman_prog_times": [],
             "solarman_prog_socs": [],
@@ -57,18 +59,16 @@ class OptimizerState:
         
         avg_price = sum(p.value for p in self.prices) / len(self.prices)
         strategy = self.options.get("strategy", "Maximize Profit")
+        charge_threshold = self.options.get("charge_threshold_pct", 85) / 100.0
+        discharge_threshold = self.options.get("discharge_threshold_pct", 115) / 100.0
         
         forecast = []
         for p in self.prices[:24]:
             action = "IDLE"
             if strategy == "Maximize Profit":
-                sorted_prices = sorted([pr.value for pr in self.prices[:24]])
-                low_threshold = sorted_prices[5] if len(sorted_prices) > 5 else 0
-                high_threshold = sorted_prices[-6] if len(sorted_prices) > 5 else 999
-                
-                if p.value <= low_threshold:
+                if p.value <= (avg_price * charge_threshold):
                     action = "CHARGE"
-                elif p.value >= high_threshold:
+                elif p.value >= (avg_price * discharge_threshold):
                     action = "DISCHARGE"
             elif strategy == "Maximize Self-Consumption":
                 action = "IDLE (Save Solar)"
@@ -109,8 +109,6 @@ class OptimizerState:
         if not token or not self.forecast:
             logger.warning("Missing token or forecast. Skipping HA actions.")
             return
-
-        # Placeholder for real HA API calls to set program entities
         pass
 
 state = OptimizerState()

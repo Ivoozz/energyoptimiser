@@ -1,6 +1,6 @@
 {
   "name": "EnergyOptimiser",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "slug": "energyoptimiser",
   "description": "Smart battery charging/discharging based on Nordpool prices and Solarman 6-program control.",
   "arch": ["amd64", "aarch64", "armv7"],
@@ -20,6 +20,8 @@
     "battery_capacity_kwh": 5.0,
     "max_charge_rate_kw": 2.5,
     "strategy": "Maximize Profit",
+    "charge_threshold_pct": 85,
+    "discharge_threshold_pct": 115,
     "update_interval_minutes": 60,
     "solarman_prog_times": [
       "number.solarman_prog1_time",
@@ -55,22 +57,26 @@
     "battery_capacity_kwh": "float",
     "max_charge_rate_kw": "float",
     "strategy": "list(Maximize Profit|Maximize Self-Consumption)",
+    "charge_threshold_pct": "int(0,200)",
+    "discharge_threshold_pct": "int(0,500)",
     "update_interval_minutes": "int(1,1440)",
     "solarman_prog_times": ["str"],
     "solarman_prog_socs": ["str"],
     "solarman_prog_grid_charges": ["str"]
   },
   "descriptions": {
-    "enabled": "Zet de gehele automatisering aan of uit. Indien uitgeschakeld, worden er geen wijzigingen naar de omvormer gestuurd.",
-    "nordpool_area": "De regio waarvoor de Nordpool prijzen moeten worden opgehaald (bijv. NL, BE, SE3).",
-    "currency": "De valuta waarin de prijzen worden weergegeven (bijv. EUR, SEK).",
-    "solarman_battery_soc": "De entiteit-ID van je batterijpercentage sensor in Home Assistant.",
-    "battery_capacity_kwh": "De totale bruikbare capaciteit van je accupakket in kilowattuur.",
-    "max_charge_rate_kw": "De maximale snelheid waarmee de accu mag laden vanaf het net (in kW).",
-    "strategy": "De optimalisatie-strategie: Winstmaximalisatie (Arbitrage) of Eigen Verbruik maximaliseren.",
-    "update_interval_minutes": "Hoe vaak de add-on de prijzen moet herberekenen en de omvormer moet aansturen (in minuten).",
-    "solarman_prog_times": "Lijst met entiteit-IDs voor de starttijden van de 6 programma-slots op de omvormer.",
-    "solarman_prog_socs": "Lijst met entiteit-IDs voor de target SOC (%) per programma-slot.",
-    "solarman_prog_grid_charges": "Lijst met entiteit-IDs voor de Grid Charge switches per programma-slot."
+    "enabled": "Zet de gehele automatisering aan of uit.",
+    "nordpool_area": "Regio voor Nordpool prijzen (bijv. NL, BE).",
+    "currency": "Valuta (bijv. EUR).",
+    "solarman_battery_soc": "Entiteit-ID van je batterij SOC sensor.",
+    "battery_capacity_kwh": "Capaciteit van je accu in kWh.",
+    "max_charge_rate_kw": "Maximale laadsnelheid in kW.",
+    "strategy": "Kies je optimalisatie-doel.",
+    "charge_threshold_pct": "Percentage van de gemiddelde dagprijs waaronder de accu moet laden (bijv. 85%).",
+    "discharge_threshold_pct": "Percentage van de gemiddelde dagprijs waarboven de accu moet ontladen (bijv. 115%).",
+    "update_interval_minutes": "Interval voor herberekening in minuten.",
+    "solarman_prog_times": "Entiteit-IDs voor de 6 programma tijden.",
+    "solarman_prog_socs": "Entiteit-IDs voor de 6 programma SOC targets.",
+    "solarman_prog_grid_charges": "Entiteit-IDs voor de 6 grid charge switches."
   }
 }
