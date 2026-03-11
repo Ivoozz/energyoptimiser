@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 from pynordpool import NordPoolClient, Currency
 import aiohttp
 import asyncio
@@ -10,20 +9,21 @@ import logging
 import requests
 import sys
 import math
+import gc
 from datetime import datetime, time, timedelta
 import pytz
 from typing import Optional, List, Dict
 
-# Professional Logging
+# High-Performance Logging for Raspberry Pi
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format='%(asctime)s - %(levelname)s - %(message)s',
     stream=sys.stdout
 )
 logger = logging.getLogger("energy-optimiser")
 
-app = FastAPI()
+app = FastAPI(docs_url=None, redoc_url=None) # Disable docs to save memory
 
 CONFIG_PATH = "/data/config.json"
 
@@ -66,7 +66,8 @@ class Optimizer:
         self.inverter_slots = []
         self.last_update = None
         self.timezone = os.getenv("TZ", "UTC")
-        self.current_soc = 50.0 # Default fallback
+        self.current_soc = 50.0
+        self.session: Optional[aiohttp.ClientSession] = None
 
     def load_config(self):
         if os.path.exists(CONFIG_PATH):
@@ -82,8 +83,14 @@ class Optimizer:
         try:
             with open(CONFIG_PATH, "w") as f:
                 json.dump(new_config, f, indent=2)
+            logger.info("Config updated.")
         except Exception as e:
             logger.error(f"Config save failed: {e}")
+
+    async def get_session(self):
+        if self.session is None or self.session.closed:
+            self.session = aiohttp.ClientSession()
+        return self.session
 
     async def get_current_soc(self):
         token = os.getenv("SUPERVISOR_TOKEN")
@@ -92,19 +99,21 @@ class Optimizer:
         headers = {"Authorization": f"Bearer {token}"}
         url = f"http://supervisor/core/api/states/{entity_id}"
         try:
+            # Using requests here for simplicity as it's a small call, 
+            # but aiohttp would be better. For now keep as is to avoid breaking.
             r = requests.get(url, headers=headers, timeout=5)
             if r.status_code == 200:
                 self.current_soc = float(r.json().get("state", 50.0))
-                logger.info(f"Current Battery SOC: {self.current_soc}%")
         except: pass
 
     async def fetch_prices(self):
         try:
-            async with aiohttp.ClientSession() as session:
-                client = NordPoolClient(session)
-                area = self.config.get("nordpool_area", "NL")
-                curr = getattr(Currency, self.config.get("currency", "EUR"), Currency.EUR)
-                self.prices = await client.async_get_delivery_period_prices(currency=curr, area=area)
+            session = await self.get_session()
+            client = NordPoolClient(session)
+            area = self.config.get("nordpool_area", "NL")
+            curr = getattr(Currency, self.config.get("currency", "EUR"), Currency.EUR)
+            self.prices = await client.async_get_delivery_period_prices(currency=curr, area=area)
+            logger.info(f"Prices fetched for {area}")
         except Exception as e:
             logger.error(f"Nordpool Error: {e}")
 
@@ -114,11 +123,12 @@ class Optimizer:
         if not key: return
         url = f"https://data.meteoserver.nl/api/uurverwachting.php?key={key}&locatie={loc}"
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        self.weather = data.get("data", [])
+            session = await self.get_session()
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    self.weather = data.get("data", [])
+                    logger.info(f"Weather fetched for {loc}")
         except Exception as e:
             logger.error(f"Weather Error: {e}")
 
@@ -127,7 +137,6 @@ class Optimizer:
         kwp = self.config.get("solar_kwp", 4.0)
         tilt = math.radians(self.config.get("solar_tilt", 35))
         pr = self.config.get("solar_efficiency", 0.85)
-        # Simplified: max efficiency at 12:00, zero at 0:00
         time_factor = max(0, 1 - abs(hour - 12) / 8) 
         yield_kw = (radiation_wm2 / 1000.0) * kwp * pr * math.cos(tilt) * time_factor
         return max(0, yield_kw)
@@ -144,54 +153,34 @@ class Optimizer:
         tz = pytz.timezone(self.timezone)
         weather_map = {w['tijd'].split(' ')[1][:2]: w for w in self.weather} if self.weather else {}
         
-        # 1. Pre-calculate solar yield for the day to see if we even need to charge from grid
+        # Solar estimation
         total_expected_solar_kwh = 0
-        temp_forecast = []
+        temp_data = []
         for p in self.prices[:24]:
             lt = p.timestamp.astimezone(tz)
             h_str = f"{lt.hour:02d}"
             rad = float(weather_map.get(h_str, {}).get('gr', 0)) if h_str in weather_map else 0
             solar_kw = self.calculate_solar_yield(rad, lt.hour)
             total_expected_solar_kwh += solar_kw
-            temp_forecast.append({"lt": lt, "price": p.value, "solar_kw": solar_kw, "h_str": h_str})
+            temp_data.append({"lt": lt, "price": p.value, "solar_kw": solar_kw, "h_str": h_str})
 
-        # Energy needed to reach 100%
         energy_needed = battery_cap * (1 - self.current_soc/100.0)
+        will_fill_from_sun = (total_expected_solar_kwh > (energy_needed * 1.2))
         
-        # 2. Final Forecast Decision
-        final_forecast = []
-        for item in temp_forecast:
-            lt = item["lt"]
-            price = item["price"]
-            solar_kw = item["solar_kw"]
+        new_forecast = []
+        for item in temp_data:
+            lt, price, solar_kw = item["lt"], item["price"], item["solar_kw"]
             action = "IDLE"
             
             if strategy == "Maximize Profit":
-                # Decision Matrix:
-                # - If price is cheap AND (Solar is low OR Battery won't fill from sun alone) -> CHARGE
-                # - If price is expensive -> DISCHARGE
-                
-                # If we expect enough sun to fill the battery today, we skip grid charging
-                will_fill_from_sun = (total_expected_solar_kwh > (energy_needed * 1.2)) # 20% margin
-                
-                is_cheap = price <= (avg_p * charge_t)
-                is_expensive = price >= (avg_p * discharge_t)
-                
-                if is_cheap:
-                    if not will_fill_from_sun:
-                        action = "CHARGE"
-                    else:
-                        action = "IDLE (WAIT FOR SUN)"
-                elif is_expensive:
+                if price <= (avg_p * charge_t):
+                    action = "CHARGE" if not will_fill_from_sun else "IDLE (WAIT FOR SUN)"
+                elif price >= (avg_p * discharge_t):
                     action = "DISCHARGE"
-            
             elif strategy == "Maximize Self-Consumption":
-                # Grid charge only if critically low (< 10%) and price is low
-                if self.current_soc < 10 and price <= (avg_p * 0.7):
-                    action = "CHARGE"
-                # Else prioritize solar
+                if self.current_soc < 10 and price <= (avg_p * 0.7): action = "CHARGE"
             
-            final_forecast.append({
+            new_forecast.append({
                 "time": lt.isoformat(),
                 "hour": lt.hour,
                 "price": round(price, 4),
@@ -200,9 +189,11 @@ class Optimizer:
                 "action": action
             })
         
-        self.forecast = final_forecast
+        self.forecast = new_forecast
         self.last_update = datetime.now()
         self.map_slots()
+        # Memory management hint
+        gc.collect()
 
     def map_slots(self):
         if not self.forecast: return
@@ -226,14 +217,15 @@ class Optimizer:
         for i in range(min(len(self.inverter_slots), 6)):
             slot = self.inverter_slots[i]
             try:
-                requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_times"][i], "value": slot["start"]*100}, timeout=5)
+                requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_times"][i], "value": slot["start"]*100}, timeout=10)
                 soc = 100 if slot["action"] == "CHARGE" else 20
-                requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_socs"][i], "value": soc}, timeout=5)
+                requests.post(f"{base_url}/number/set_value", headers=headers, json={"entity_id": self.config["solarman_prog_socs"][i], "value": soc}, timeout=10)
                 svc = "switch/turn_on" if slot["action"] == "CHARGE" else "switch/turn_off"
-                requests.post(f"{base_url}/{svc}", headers=headers, json={"entity_id": self.config["solarman_prog_grid_charges"][i]}, timeout=5)
+                requests.post(f"{base_url}/{svc}", headers=headers, json={"entity_id": self.config["solarman_prog_grid_charges"][i]}, timeout=10)
             except: pass
 
     async def run_loop(self):
+        logger.info("Optimizer Loop Started.")
         while True:
             try:
                 if self.config.get("enabled"):
@@ -242,7 +234,9 @@ class Optimizer:
                     await self.fetch_weather()
                     self.calculate_forecast()
                     await self.apply_to_ha()
-                await asyncio.sleep(self.config.get("update_interval_minutes", 60) * 60)
+                
+                wait_time = max(1, self.config.get("update_interval_minutes", 60)) * 60
+                await asyncio.sleep(wait_time)
             except Exception as e:
                 logger.error(f"Loop error: {e}")
                 await asyncio.sleep(60)
@@ -250,7 +244,13 @@ class Optimizer:
 state = Optimizer()
 
 @app.on_event("startup")
-async def on_startup(): asyncio.create_task(state.run_loop())
+async def on_startup():
+    asyncio.create_task(state.run_loop())
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    if state.session:
+        await state.session.close()
 
 @app.get("/api/status")
 async def get_status():
@@ -270,8 +270,11 @@ async def save_config(new_config: dict):
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
-    with open("static/index.html", "r") as f: return f.read()
+    try:
+        with open("static/index.html", "r") as f: return f.read()
+    except: return HTMLResponse("<h1>UI Error</h1>", status_code=500)
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Use 1 worker for low RAM environments like Raspberry Pi
+    uvicorn.run(app, host="0.0.0.0", port=8000, workers=1, access_log=False)
