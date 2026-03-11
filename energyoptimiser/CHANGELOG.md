@@ -1,13 +1,11 @@
 # Changelog
 
-## v2026.3.12
-- **Integration**: Migrated from Nordpool to **Zonneplan API** for more reliable and tax-inclusive Dutch energy prices.
-- **Feature**: Full support for **Multiple Solar Arrays** with active yield forecasting integrated into the logic.
-- **Feature**: Added **Zero on the Meter** strategy for minimum grid interaction.
-- **Admin GUI**: Redesigned the entire Settings page with exhaustive descriptions and help-texts for every variable.
-- **Bugfix**: Fixed checkbox saving issues in the Admin GUI.
-- **Performance**: Optimized for Raspberry Pi with multi-stage builds and memory management.
+## v2026.3.13
+- **UI Fix**: Completely redesigned the **Solarman Registers** configuration. Instead of disappearing fields, you now have 6 clear, dedicated rows (one for each program) containing the Time, SOC %, and Grid-Charge entity IDs.
+- **Robustness**: Bulletproofed the form rendering and save logic to ensure settings are always visible and correctly stored.
+- **Versioning**: Incremented version to ensure immediate update availability in Home Assistant.
 
-## v2026.3.11
-- Fixed Admin GUI save logic.
-- Resolved Nordpool attribute error fallback.
+## v2026.3.12
+- Migrated to Zonneplan pricing.
+- Multi-solar array support.
+- Zero on the Meter strategy.
