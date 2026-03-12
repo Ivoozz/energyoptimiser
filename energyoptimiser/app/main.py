@@ -15,7 +15,7 @@ from typing import Optional, List, Dict, Any
 
 # --- Configuration & Defaults ---
 CONFIG_PATH = "/data/config.json"
-VERSION = "v2026.3.30"
+VERSION = "v2026.3.31"
 
 # Professional Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -75,7 +75,7 @@ class Optimizer:
         self.inverter_slots = []
         self.last_update = None
         
-        # Robust Timezone loading: Handle empty string or missing env
+        # Robust Timezone loading
         tz_env = os.getenv("TZ", "").strip()
         if not tz_env:
             tz_env = "Europe/Amsterdam"
@@ -157,7 +157,7 @@ class Optimizer:
             logger.error(f"Error connecting to HA for SOC: {e}")
 
     async def fetch_prices(self):
-        """Fetch electricity prices from EnergyZero (NL)."""
+        """Fetch electricity prices from EnergyZero (NL) with improved robustness."""
         logger.info("Fetching EnergyZero prices...")
         now_local = datetime.now(self.timezone)
         # Fetch from yesterday to tomorrow to ensure we have data for the sliding 24h window
@@ -183,7 +183,7 @@ class Optimizer:
                     parsed_prices = []
                     for p in raw_prices:
                         try:
-                            # Robust field access
+                            # Robust field access for different API versions
                             date_str = p.get("readingDate") or p.get("datetime")
                             if not date_str: continue
                             dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
@@ -232,7 +232,6 @@ class Optimizer:
                 azimuth = float(array.get("azimuth", 180.0))
                 efficiency = float(array.get("efficiency", 0.85))
                 
-                # Simple geometric model for solar intensity
                 # Azimuth 180 (South) is optimal.
                 az_factor = math.cos(math.radians(azimuth - 180.0))
                 # Time factor (peak at 12:00)
@@ -253,6 +252,7 @@ class Optimizer:
         now = datetime.now(pytz.UTC)
         relevant_prices = [p for p in self.prices if p["timestamp"] >= now - timedelta(hours=1)][:24]
         if not relevant_prices:
+            logger.warning("No relevant prices found for the next 24h window.")
             return
 
         avg_price = sum(p["value"] for p in relevant_prices) / len(relevant_prices)
@@ -277,8 +277,6 @@ class Optimizer:
 
             # Strategy Implementation
             if strategy == "Zero on the Meter":
-                # Goal: Avoid grid costs. Charge when price is negative or very low. 
-                # Discharge only when price is high and we have surplus.
                 if price < 0:
                     action = "CHARGE (NEG)"
                     grid_charge = "on"
@@ -298,7 +296,6 @@ class Optimizer:
                     action = "DISCHARGE"
             
             elif strategy == "Maximize Self-Consumption":
-                # Keep battery for evening peak
                 if lt.hour >= 17 and lt.hour <= 21:
                     action = "DISCHARGE"
                 elif solar_kw > 1.0:
@@ -340,14 +337,11 @@ class Optimizer:
         
         raw_slots.append({"start": start_hour, "action": current_action, "grid_charge": current_grid})
 
-        # We must have exactly 6 slots for the inverter
         if len(raw_slots) > 6:
-            # Simple compression: take first 5 and merge remaining into 6th
             final_slots = raw_slots[:5]
-            final_slots.append(raw_slots[5]) # Simplified
+            final_slots.append(raw_slots[5]) 
         else:
             final_slots = raw_slots
-            # Fill remaining with IDLE slots
             last_h = final_slots[-1]["start"]
             while len(final_slots) < 6:
                 last_h = (last_h + 1) % 24
@@ -374,29 +368,23 @@ class Optimizer:
         
         for i, slot in enumerate(self.inverter_slots):
             try:
-                # Time format for Solarman is often HHMM as an integer (e.g. 1400 for 14:00)
                 time_val = slot["start"] * 100
-                
-                # Determine target SOC based on action
                 min_soc = float(self.config.get("battery_min_soc", 20.0))
                 max_soc = float(self.config.get("battery_max_soc", 100.0))
                 
-                target_soc = min_soc # Default floor
+                target_soc = min_soc 
                 if "CHARGE" in slot["action"]:
                     target_soc = max_soc
                 elif slot["action"] == "AUTONOMOUS":
-                    target_soc = (min_soc + max_soc) / 2 # Mid-point for autonomous
+                    target_soc = (min_soc + max_soc) / 2
                 
                 grid_service = "switch/turn_on" if slot["grid_charge"] == "on" else "switch/turn_off"
                 
                 if not dry_run:
-                    # Set Time
                     await session.post(f"{base_url}/number/set_value", headers=headers, 
                                      json={"entity_id": self.config["solarman_prog_times"][i], "value": time_val})
-                    # Set SOC
                     await session.post(f"{base_url}/number/set_value", headers=headers, 
                                      json={"entity_id": self.config["solarman_prog_socs"][i], "value": target_soc})
-                    # Set Grid Charge Switch
                     await session.post(f"{base_url}/{grid_service}", headers=headers, 
                                      json={"entity_id": self.config["solarman_prog_grid_charges"][i]})
                 else:
@@ -408,13 +396,12 @@ class Optimizer:
     async def run_cycle(self, dry_run: bool = False):
         """Perform one full optimization cycle using REAL data only."""
         logger.info(f"Starting optimization cycle (Dry Run: {dry_run})")
-        
         await self.fetch_soc_from_ha()
         await self.fetch_prices()
         await self.fetch_weather()
         
         if not self.prices:
-            logger.error("Cycle aborted: No real price data available from EnergyZero.")
+            logger.error("Cycle aborted: No real price data available.")
             return False
             
         self.calculate_forecast()
@@ -429,7 +416,6 @@ class Optimizer:
             try:
                 if self.config.get("enabled"):
                     await self.run_cycle()
-                
                 interval = max(5, self.config.get("update_interval_minutes", 60))
                 await asyncio.sleep(interval * 60)
             except Exception as e:
@@ -457,13 +443,17 @@ async def get_status():
         "forecast": optimizer_state.forecast,
         "inverter_slots": optimizer_state.inverter_slots,
         "last_update": optimizer_state.last_update.isoformat() if optimizer_state.last_update else None,
-        "current_soc": optimizer_state.current_soc
+        "current_soc": optimizer_state.current_soc,
+        "debug": {
+            "prices_count": len(optimizer_state.prices),
+            "weather_count": len(optimizer_state.weather),
+            "timezone": str(optimizer_state.timezone)
+        }
     }
 
 @app.post("/api/config")
 async def update_config(new_config: dict):
     optimizer_state.save_config(new_config)
-    # Trigger immediate update if enabled
     if optimizer_state.config.get("enabled"):
         asyncio.create_task(optimizer_state.run_cycle())
     return {"status": "success"}
@@ -471,8 +461,8 @@ async def update_config(new_config: dict):
 @app.post("/api/test_run")
 async def run_test_run():
     """Run a test cycle (simulation) without applying changes to HA."""
-    await optimizer_state.run_cycle(dry_run=True)
-    return {"status": "ok"}
+    success = await optimizer_state.run_cycle(dry_run=True)
+    return {"status": "ok" if success else "failed"}
 
 @app.get("/", response_class=HTMLResponse)
 async def index():

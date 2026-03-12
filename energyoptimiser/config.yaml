@@ -1,5 +1,5 @@
 name: "EnergyOptimiser"
-version: "2026.3.30"
+version: "2026.3.31"
 slug: "energyoptimiser"
 description: "Professional battery energy management with EnergyZero EPEX NL prices and Meteoserver solar forecasting."
 url: "https://github.com/Ivoozz/energyoptimiser"
