@@ -1,10 +1,14 @@
 # Changelog
 
+## v2026.3.32
+- **Feature**: Added **Onboarding Wizard** to guide new users through initial setup.
+- **Feature**: Added **Live Logs** page to the Admin Hub for real-time diagnostics.
+- **Integration**: Switched to **EasyEnergy API** for highly stable EPEX Spot NL prices.
+- **Maintenance**: Synchronized versioning and professional descriptions across all metadata.
+
 ## v2026.3.31
-- **UI Diagnostics**: Fixed the API status indicator bar. It now correctly reflects the live status of EnergyZero, Meteoserver, and the Home Assistant API.
-- **Robustness**: Improved EnergyZero price fetching logic to be more resilient to API response variations.
-- **UI UX**: Added a "No Data" overlay on the main chart to provide clear feedback when external APIs are not returning data.
-- **Maintenance**: Synchronized versioning across all components.
+- Fixed API status bar indicators.
+- Added No-Data overlay to chart.
 
 ## v2026.3.30
 - Validation: Removed all dummy/placeholder data from the simulation.
