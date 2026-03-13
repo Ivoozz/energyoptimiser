@@ -18,7 +18,6 @@ RUN apk add --no-cache \
 WORKDIR /app
 
 # Copy requirements and install
-# Note: --break-system-packages is required for Alpine 3.19+ to install packages via pip
 COPY app/requirements.txt .
 RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
 
@@ -31,7 +30,7 @@ LABEL \
     io.hass.description="Professional battery energy management with EnergyZero EPEX NL prices and Meteoserver solar forecasting." \
     io.hass.arch="${BUILD_ARCH}" \
     io.hass.type="addon" \
-    io.hass.version="2026.3.35" \
+    io.hass.version="2026.3.36" \
     maintainer="FixjeICT <info@fixjeict.nl>"
 
 # Start script
