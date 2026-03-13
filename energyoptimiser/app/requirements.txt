@@ -1,8 +1,6 @@
 fastapi
 uvicorn
-pynordpool
 aiohttp
-python-dotenv
-asyncio
 pytz
+python-dotenv
 requests

@@ -1,20 +1,26 @@
 ARG BUILD_FROM
 FROM $BUILD_FROM
 
+# Build arguments
+ARG BUILD_ARCH
+
 ENV LANG C.UTF-8
 
-# Install dependencies
+# Install Python and essential build dependencies
 RUN apk add --no-cache \
     python3 \
     py3-pip \
-    py3-tz
+    py3-tz \
+    bash \
+    tzdata
 
 # Set working directory
 WORKDIR /app
 
 # Copy requirements and install
+# Note: --break-system-packages is required for Alpine 3.19+ to install packages via pip
 COPY app/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
 
 # Copy application files
 COPY app/ .
@@ -25,7 +31,7 @@ LABEL \
     io.hass.description="Professional battery energy management with EnergyZero EPEX NL prices and Meteoserver solar forecasting." \
     io.hass.arch="${BUILD_ARCH}" \
     io.hass.type="addon" \
-    io.hass.version="2026.3.34" \
+    io.hass.version="2026.3.35" \
     maintainer="FixjeICT <info@fixjeict.nl>"
 
 # Start script

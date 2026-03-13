@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger("energy-optimiser")
 app = FastAPI(docs_url=None, redoc_url=None)
 
-CONFIG_PATH, VERSION = "/data/config.json", "2026.3.34"
+CONFIG_PATH, VERSION = "/data/config.json", "2026.3.35"
 DEFAULT_CONFIG = {
     "enabled": False, "market_area": "NL", "battery_capacity_kwh": 5.0, "update_interval_minutes": 60,
     "solarman_battery_soc": "sensor.solarman_battery_soc",
