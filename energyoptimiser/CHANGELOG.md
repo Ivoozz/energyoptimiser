@@ -1,11 +1,11 @@
 # Changelog
 
-## v2026.3.42
-- **Feature**: Added **Home Assistant Discovery Engine**. Scan and list all HA entities directly from the UI.
-- **UX**: Added easy copy-to-clipboard for Entity IDs in the Discovery tab.
-- **Stability**: Enhanced data parsing for Nordpool NL prices.
-- **Maintenance**: Fully synchronized versioning to v2026.3.42.
+## v2026.3.43
+- **Feature**: **Full UI Transparency** - Every single Inverter Register (P1-P6) is now explicitly visible and editable in the 'Inverter' tab.
+- **UI**: Added a 6-tab navigation system: Status, Systeem, Zon, Inverter, Discovery, Logs.
+- **Control**: Every program slot (Time, SOC, Grid Charge) has its own dedicated input field with help-text.
+- **Stability**: Re-engineered log buffer to ensure 100% visibility in the web interface.
+- **Maintenance**: Fully synchronized versioning to v2026.3.43.
 
-## v2026.3.41
-- **Integration**: Switched to **Nordpool API** for official market energy prices.
-- **Fix**: Logs visibility restored in the dashboard.
+## v2026.3.42
+- **Feature**: Added **Home Assistant Discovery Engine**.

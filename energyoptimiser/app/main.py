@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from nordpool import elspot
 
-# Expliciete Logging Buffer
+# Expliciete Logging Buffer (UI Zichtbaarheid)
 class LogBufferHandler(logging.Handler):
     def __init__(self, capacity=200):
         super().__init__()
@@ -24,7 +24,7 @@ logger = logging.getLogger("energy-optimiser")
 logger.propagate = False
 
 app = FastAPI(docs_url=None, redoc_url=None)
-CONFIG_PATH, VERSION = "/data/config.json", "2026.3.42"
+CONFIG_PATH, VERSION = "/data/config.json", "2026.3.43"
 
 DEFAULT_CONFIG = {
     "enabled": False, "market_area": "NL", "strategy": "Hoogste Verdienen",
@@ -43,7 +43,7 @@ class Optimizer:
         self.config = self.load_config()
         self.prices, self.forecast, self.last_update = [], [], None
         self.current_soc, self._session = 50.0, None
-        self.api_errors = {"prices": "Nordpool Standby", "ha": "Offline"}
+        self.api_errors = {"prices": "Nordpool Standby", "ha": "Offline", "weather": "Offline"}
 
     def load_config(self):
         if os.path.exists(CONFIG_PATH):
@@ -55,22 +55,12 @@ class Optimizer:
     def save_config(self, cfg):
         self.config.update(cfg)
         with open(CONFIG_PATH, "w") as f: json.dump(self.config, f, indent=2)
-        logger.info("Configuratie opgeslagen.")
+        logger.info("✅ Configuratie succesvol opgeslagen in /data/config.json")
 
     async def get_session(self):
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
         return self._session
-
-    async def fetch_ha_entities(self) -> List[Dict[str, Any]]:
-        token = os.getenv("SUPERVISOR_TOKEN")
-        if not token: return []
-        try:
-            session = await self.get_session()
-            async with session.get("http://supervisor/core/api/states", headers={"Authorization": f"Bearer {token}"}) as r:
-                if r.status == 200: return await r.json()
-        except: pass
-        return []
 
     async def write_to_ha(self, entity_id: str, value: Any):
         token = os.getenv("SUPERVISOR_TOKEN")
@@ -83,11 +73,11 @@ class Optimizer:
         try:
             session = await self.get_session()
             async with session.post(url, headers={"Authorization": f"Bearer {token}"}, json=data) as r:
-                if r.status != 200: logger.error(f"HA Write Error {entity_id}")
+                if r.status != 200: logger.error(f"❌ HA Write Error {entity_id}: {r.status}")
         except: pass
 
     async def fetch_data(self):
-        logger.info("Data verversen via Nordpool & HA...")
+        logger.info("🚀 Start synchronisatie-cyclus...")
         session = await self.get_session()
         token, entity = os.getenv("SUPERVISOR_TOKEN"), self.config.get("solarman_battery_soc")
         if token and entity:
@@ -97,7 +87,8 @@ class Optimizer:
                         data = await r.json()
                         self.current_soc = float(data.get("state", 50.0))
                         self.api_errors["ha"] = "OK"
-            except: self.api_errors["ha"] = "HA Fout"
+                        logger.info(f"🔋 Batterij SOC opgehaald: {self.current_soc}%")
+            except: self.api_errors["ha"] = "Error"
 
         try:
             prices_elspot = elspot.Prices(currency='EUR')
@@ -105,16 +96,19 @@ class Optimizer:
             raw_prices = [{"time": e['start'].isoformat(), "price": float(e['value'])/1000} for e in data['areas']['NL']['values']]
             self.prices = sorted(raw_prices, key=lambda x: x["time"])
             self.api_errors["prices"] = "OK"
+            logger.info(f"📊 Nordpool NL prijzen ververst ({len(self.prices)} uren).")
             self.optimize()
         except Exception as e:
-            self.api_errors["prices"] = f"Nordpool Fout"
-            logger.error(f"Nordpool Error: {e}")
+            self.api_errors["prices"] = "Error"
+            logger.error(f"❌ Nordpool API Fout: {e}")
 
     def optimize(self):
         if not self.prices: return
         strategy = self.config.get("strategy", "Hoogste Verdienen")
+        logger.info(f"🧠 Optimaliseren via strategie: {strategy}")
         sorted_prices = sorted(self.prices[:24], key=lambda x: x["price"])
         cheap_hours = [p["time"] for p in sorted_prices[:6]]
+        
         slots = []
         for i in range(6):
             idx = min(i * 4, len(self.prices) - 1)
@@ -133,7 +127,7 @@ class Optimizer:
             await self.write_to_ha(self.config["solarman_prog_times"][i], slot["time"])
             await self.write_to_ha(self.config["solarman_prog_socs"][i], slot["soc"])
             await self.write_to_ha(self.config["solarman_prog_grid_charges"][i], slot["grid"])
-        logger.info("Inverter registers bijgewerkt in HA.")
+        logger.info("📡 Inverter registers bijgewerkt in Home Assistant.")
 
     async def loop(self):
         while True:
@@ -151,8 +145,14 @@ async def get_status():
 
 @app.get("/api/ha/entities")
 async def get_entities():
-    entities = await state.fetch_ha_entities()
-    return {"entities": [{"id": e["entity_id"], "name": e.get("attributes", {}).get("friendly_name", e["entity_id"]), "state": e["state"]} for e in entities]}
+    token = os.getenv("SUPERVISOR_TOKEN")
+    if not token: return {"entities": []}
+    async with aiohttp.ClientSession() as s:
+        async with s.get("http://supervisor/core/api/states", headers={"Authorization": f"Bearer {token}"}) as r:
+            if r.status == 200:
+                data = await r.json()
+                return {"entities": [{"id": e["entity_id"], "name": e.get("attributes", {}).get("friendly_name", e["entity_id"]), "state": e["state"]} for e in data]}
+    return {"entities": []}
 
 @app.get("/api/logs")
 async def get_logs(): return {"logs": log_buffer.buffer}
