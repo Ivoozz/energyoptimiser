@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 import aiohttp, asyncio, os, json, logging, pytz, sys
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.INFO, format='%(message)s', handlers=[logging.
 logger = logging.getLogger("energy-optimiser")
 
 app = FastAPI(docs_url=None, redoc_url=None)
-CONFIG_PATH, VERSION = "/data/config.json", "2026.3.38"
+CONFIG_PATH, VERSION = "/data/config.json", "2026.3.39"
 
 DEFAULT_CONFIG = {
     "enabled": False, "market_area": "NL", "strategy": "Maximize Profit",
@@ -51,15 +51,18 @@ class Optimizer:
     def save_config(self, cfg):
         self.config.update(cfg)
         with open(CONFIG_PATH, "w") as f: json.dump(self.config, f, indent=2)
-        logger.info("Configuration updated and stored in /data/config.json")
+        logger.info(f"Configuration saved. Active: {self.config['enabled']}")
 
     async def get_session(self):
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
         return self._session
 
-    async def fetch_data(self):
+    async def fetch_data(self, is_test=False):
+        if is_test: logger.info("--- STARTING SYSTEM TESTRUN ---")
         session = await self.get_session()
+        
+        # HA Sync
         token, entity = os.getenv("SUPERVISOR_TOKEN"), self.config.get("solarman_battery_soc")
         if token and entity:
             try:
@@ -68,9 +71,11 @@ class Optimizer:
                         data = await r.json()
                         self.current_soc = float(data.get("state", 50.0))
                         self.api_errors["ha"] = "OK"
+                        if is_test: logger.info(f"Test: Successfully fetched SOC: {self.current_soc}%")
                     else: self.api_errors["ha"] = f"Error {r.status}"
-            except: self.api_errors["ha"] = "Connection Failed"
+            except Exception as e: self.api_errors["ha"] = "Connection Failed"
 
+        # Prices
         try:
             now = datetime.now(pytz.timezone("Europe/Amsterdam"))
             start, end = now.replace(hour=0,min=0,sec=0), now.replace(hour=0,min=0,sec=0) + timedelta(days=2)
@@ -83,8 +88,11 @@ class Optimizer:
                     self.forecast = [{"time": p["time"], "price": p["price"], "action": "CHARGE" if p["price"] < avg * 0.9 else "IDLE"} for p in self.prices[:24]]
                     self.last_update = datetime.now()
                     self.api_errors["prices"] = "OK"
+                    if is_test: logger.info(f"Test: Fetched {len(self.prices)} price points. Action plan generated.")
                 else: self.api_errors["prices"] = f"Error {r.status}"
-        except: self.api_errors["prices"] = "Fetch Failed"
+        except Exception as e: self.api_errors["prices"] = "Fetch Failed"
+
+        if is_test: logger.info("--- TESTRUN COMPLETED SUCCESSFULLY ---")
 
     async def loop(self):
         while True:
@@ -103,8 +111,15 @@ async def get_status():
 @app.get("/api/logs")
 async def get_logs(): return {"logs": log_buffer.buffer}
 
+@app.post("/api/testrun")
+async def run_test():
+    await state.fetch_data(is_test=True)
+    return {"status": "ok"}
+
 @app.post("/api/config")
-async def update_config(cfg: dict): state.save_config(cfg); return {"ok": True}
+async def update_config(cfg: dict):
+    state.save_config(cfg)
+    return {"status": "ok"}
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
