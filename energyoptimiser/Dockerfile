@@ -30,7 +30,7 @@ LABEL \
     io.hass.description="Professional battery energy management with EnergyZero EPEX NL prices and Meteoserver solar forecasting." \
     io.hass.arch="${BUILD_ARCH}" \
     io.hass.type="addon" \
-    io.hass.version="2026.3.36" \
+    io.hass.version="2026.3.37" \
     maintainer="FixjeICT <info@fixjeict.nl>"
 
 # Start script

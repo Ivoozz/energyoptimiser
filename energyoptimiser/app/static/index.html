@@ -11,10 +11,9 @@
         .input { background: #020617; border: 1px solid #334155; border-radius: 0.5rem; padding: 0.6rem; width: 100%; color: white; font-size: 0.85rem; }
         .tab { padding: 1rem 1.5rem; font-weight: 700; color: #94a3b8; border-bottom: 3px solid transparent; transition: 0.3s; cursor: pointer; white-space: nowrap; }
         .tab.active { color: #10b981; border-bottom-color: #10b981; background: rgba(16, 185, 129, 0.05); }
-        .status-badge { padding: 0.25rem 0.5rem; border-radius: 0.4rem; font-size: 0.65rem; font-weight: 900; text-transform: uppercase; }
+        .status-badge { padding: 0.25rem 0.5rem; border-radius: 0.4rem; font-size: 0.65rem; font-weight: 900; text-transform: uppercase; cursor: help; }
         .badge-online { background: #065f46; color: #34d399; }
         .badge-offline { background: #7f1d1d; color: #f87171; }
-        .badge-warn { background: #78350f; color: #fbbf24; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
@@ -25,52 +24,60 @@
                 <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg">⚡</div>
                 <div>
                     <h1 class="text-xl font-black">EnergyOptimiser</h1>
-                    <p id="v-string" class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">v2026.3.36</p>
+                    <p id="v-string" class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">v2026.3.37</p>
                 </div>
             </div>
             <div class="flex overflow-x-auto no-scrollbar items-center">
                 <div onclick="showTab('dashboard')" class="tab active" id="t-dashboard">Dashboard</div>
-                <div onclick="showTab('config')" class="tab" id="t-config">Instellingen</div>
+                <div onclick="showTab('config')" class="tab" id="t-config">Systeem</div>
                 <div onclick="showTab('solar')" class="tab" id="t-solar">Zon</div>
                 <div onclick="showTab('inverter')" class="tab" id="t-inverter">Inverter</div>
+                <div onclick="showTab('logs')" class="tab" id="t-logs">Logs</div>
             </div>
         </div>
     </nav>
 
     <main class="container mx-auto p-4 md:p-8 max-w-6xl pb-40">
-        <!-- DASHBOARD -->
         <section id="p-dashboard" class="space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="glass p-6 border-l-4 border-emerald-500">
-                    <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Systeem Status</p>
-                    <div class="flex items-center gap-2">
-                        <h2 id="s-enabled" class="text-xl font-black italic">-</h2>
-                        <span id="h-status" class="w-3 h-3 rounded-full bg-slate-700"></span>
-                    </div>
+                    <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Status</p>
+                    <h2 id="s-enabled" class="text-xl font-black italic">-</h2>
                 </div>
                 <div class="glass p-6 border-l-4 border-blue-500">
                     <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Accu SOC</p>
                     <h2 id="s-soc" class="text-2xl font-black text-emerald-400">-%</h2>
                 </div>
                 <div class="glass p-6 border-l-4 border-slate-700">
-                    <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">API Koppelingen</p>
+                    <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">API Gezondheid</p>
                     <div class="flex flex-wrap gap-2 mt-1">
-                        <span id="b-prices" class="status-badge badge-offline">Prices</span>
-                        <span id="b-weather" class="status-badge badge-offline">Weather</span>
-                        <span id="b-ha" class="status-badge badge-offline">HomeAssistant</span>
+                        <span id="b-prices" class="status-badge badge-offline" title="Geen data">Prices</span>
+                        <span id="b-weather" class="status-badge badge-offline" title="Geen data">Weather</span>
+                        <span id="b-ha" class="status-badge badge-offline" title="Geen data">HomeAssistant</span>
                     </div>
                 </div>
-                <div class="glass p-6 border-l-4 border-slate-700">
-                    <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Laatste Sync</p>
+                <div class="glass p-6 border-l-4 border-slate-700 text-center">
+                    <p class="text-[10px] font-bold text-slate-500 uppercase mb-2">Sync</p>
                     <h2 id="s-update" class="text-lg font-bold">--:--</h2>
                 </div>
             </div>
-            <div class="glass p-8">
-                <canvas id="priceChart" height="400"></canvas>
+            <div class="glass p-8 h-[450px]">
+                <canvas id="priceChart"></canvas>
             </div>
         </section>
 
-        <!-- CONFIGURATION -->
+        <section id="p-logs" class="hidden space-y-4">
+            <div class="glass p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-black text-blue-400">Systeem Logboek</h2>
+                    <button onclick="fetchLogs()" class="text-[10px] bg-slate-800 px-3 py-1 rounded hover:bg-slate-700 uppercase font-black">Refresh Now</button>
+                </div>
+                <div id="log-window" class="bg-black/50 p-4 rounded border border-slate-800 h-[500px] overflow-y-auto font-mono text-[11px] text-slate-300 leading-relaxed no-scrollbar">
+                    Laden van logs...
+                </div>
+            </div>
+        </section>
+
         <form id="cfg-form" class="space-y-8">
             <section id="p-config" class="hidden space-y-6">
                 <div class="glass p-8 space-y-8">
@@ -94,34 +101,20 @@
 
             <section id="p-solar" class="hidden space-y-6">
                 <div class="glass p-8 space-y-8">
-                    <div class="flex justify-between items-center">
-                        <h2 class="text-2xl font-black text-yellow-400">Zonnepanelen</h2>
-                        <input type="checkbox" name="solar_enabled" class="w-6 h-6 accent-emerald-500">
-                    </div>
+                    <div class="flex justify-between items-center"><h2 class="text-2xl font-black text-yellow-400">Zonnepanelen</h2><input type="checkbox" name="solar_enabled" class="w-6 h-6 accent-emerald-500"></div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div><label class="block text-[10px] uppercase font-black text-slate-500 mb-2">Meteoserver API Key</label>
-                            <input type="password" name="meteoserver_key" class="input"></div>
-                        <div><label class="block text-[10px] uppercase font-black text-slate-500 mb-2">Locatie</label>
-                            <input type="text" name="meteoserver_location" class="input"></div>
+                        <div><label class="block text-[10px] uppercase font-black text-slate-500 mb-2">Meteoserver API Key</label><input type="password" name="meteoserver_key" class="input"></div>
+                        <div><label class="block text-[10px] uppercase font-black text-slate-500 mb-2">Locatie</label><input type="text" name="meteoserver_location" class="input"></div>
                     </div>
-                    <div class="pt-6 border-t border-slate-800">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-sm font-black uppercase text-slate-500">Panelen Sets</h3>
-                            <button type="button" onclick="addArray()" class="text-xs bg-slate-800 px-3 py-1 rounded">Set Toevoegen</button>
-                        </div>
-                        <div id="solar-list" class="space-y-2"></div>
-                    </div>
+                    <div id="solar-list" class="space-y-2 pt-4 border-t border-slate-800"></div>
+                    <button type="button" onclick="addArray()" class="w-full bg-slate-800 py-2 rounded text-xs font-bold">+ Set Toevoegen</button>
                 </div>
             </section>
 
             <section id="p-inverter" class="hidden space-y-6">
                 <div class="glass p-8 space-y-8">
                     <h2 class="text-2xl font-black text-emerald-400">Inverter Registers</h2>
-                    <div><label class="block text-[10px] uppercase font-black text-slate-500 mb-2">SOC Entity (HA)</label>
-                        <input type="text" name="solarman_battery_soc" class="input font-mono"></div>
-                    <div class="grid grid-cols-4 gap-2 text-[9px] font-black uppercase text-slate-600 px-2">
-                        <div>P#</div><div>Tijd Register</div><div>SOC Register</div><div>Grid Charge</div>
-                    </div>
+                    <div><label class="block text-[10px] uppercase font-black text-slate-500 mb-2">SOC Entity (HA)</label><input type="text" name="solarman_battery_soc" class="input font-mono"></div>
                     <div id="reg-list" class="space-y-2"></div>
                 </div>
             </section>
@@ -137,16 +130,12 @@
         async function load() {
             const r = await fetch('/api/status'), d = await r.json();
             document.getElementById('s-enabled').innerText = d.config.enabled ? 'ACTIEF' : 'STANDBY';
-            document.getElementById('s-enabled').className = d.config.enabled ? 'text-xl font-black italic text-emerald-400' : 'text-xl font-black italic text-rose-400';
-            document.getElementById('h-status').className = 'w-3 h-3 rounded-full ' + (d.config.enabled ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-slate-700');
             document.getElementById('s-soc').innerText = (d.current_soc || 0).toFixed(1) + '%';
             document.getElementById('s-update').innerText = d.last_update ? new Date(d.last_update).toLocaleTimeString('nl-NL') : '--:--';
-            document.getElementById('v-string').innerText = d.version;
             
-            // API Badges
-            updateBadge('b-prices', d.api_status.prices);
-            updateBadge('b-weather', d.api_status.weather);
-            updateBadge('b-ha', d.api_status.ha);
+            updateBadge('b-prices', d.api_errors.prices);
+            updateBadge('b-weather', d.api_errors.weather);
+            updateBadge('b-ha', d.api_errors.ha);
 
             const f = document.getElementById('cfg-form');
             f.enabled.value = d.config.enabled.toString();
@@ -158,12 +147,11 @@
             f.meteoserver_key.value = d.config.meteoserver_key;
             f.meteoserver_location.value = d.config.meteoserver_location;
 
-            // Registers
             const rList = document.getElementById('reg-list');
             if(!rList.children.length) {
                 for(let i=0; i<6; i++) {
                     const div = document.createElement('div'); div.className = 'grid grid-cols-4 gap-2 bg-slate-900/50 p-2 rounded border border-slate-800';
-                    div.innerHTML = `<div class="text-[10px] font-bold text-slate-500 self-center pl-2">P${i+1}</div>
+                    div.innerHTML = `<div class="text-[10px] font-bold text-slate-500 self-center">P${i+1}</div>
                                      <input type="text" id="rt-${i}" value="${d.config.solarman_prog_times[i]}" class="input text-[10px] font-mono">
                                      <input type="text" id="rs-${i}" value="${d.config.solarman_prog_socs[i]}" class="input text-[10px] font-mono">
                                      <input type="text" id="rg-${i}" value="${d.config.solarman_prog_grid_charges[i]}" class="input text-[10px] font-mono">`;
@@ -174,9 +162,20 @@
             updateChart(d.forecast);
         }
 
-        function updateBadge(id, status) {
+        function updateBadge(id, error) {
             const b = document.getElementById(id);
-            b.className = 'status-badge ' + (status === 'online' ? 'badge-online' : (status === 'error' ? 'badge-warn' : 'badge-offline'));
+            if(error === 'OK') { b.className = 'status-badge badge-online'; b.title = 'Verbinding OK'; }
+            else { b.className = 'status-badge badge-offline'; b.title = error || 'Geen verbinding'; }
+        }
+
+        async function fetchLogs() {
+            const r = await fetch('/api/logs'), d = await r.json();
+            const w = document.getElementById('log-window');
+            w.innerHTML = d.logs.map(l => {
+                const color = l.includes('ERROR') ? 'text-rose-400' : (l.includes('WARNING') ? 'text-amber-400' : 'text-slate-300');
+                return `<div class="${color}">${l}</div>`;
+            }).join('');
+            w.scrollTop = w.scrollHeight;
         }
 
         function renderArrays() {
@@ -187,17 +186,19 @@
                                  <input type="number" step="0.1" value="${a.kwp}" onchange="solarArrays[${i}].kwp=parseFloat(this.value)" class="input text-xs">
                                  <input type="number" value="${a.tilt}" onchange="solarArrays[${i}].tilt=parseInt(this.value)" class="input text-xs">
                                  <input type="number" value="${a.azimuth}" onchange="solarArrays[${i}].azimuth=parseInt(this.value)" class="input text-xs">
-                                 <button type="button" onclick="solarArrays.splice(${i},1);renderArrays()" class="text-rose-500 text-[10px] font-bold">Wissen</button>`;
+                                 <button type="button" onclick="solarArrays.splice(${i},1);renderArrays()" class="text-rose-500 text-[10px] font-bold">X</button>`;
                 l.appendChild(div);
             });
         }
         function addArray() { solarArrays.push({name:'Set', kwp:0, tilt:35, azimuth:180}); renderArrays(); }
 
         function showTab(id) {
-            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            document.querySelectorAll('section, form section').forEach(s => s.classList.add('hidden'));
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.getElementById('p-' + id).classList.remove('hidden');
             document.getElementById('t-' + id).classList.add('active');
+            if(id === 'logs') { fetchLogs(); if(!window.logInterval) window.logInterval = setInterval(fetchLogs, 3000); }
+            else { clearInterval(window.logInterval); window.logInterval = null; }
         }
 
         function updateChart(data) {
@@ -207,7 +208,7 @@
                 type: 'line',
                 data: {
                     labels: data.map(i => new Date(i.time).getHours() + ':00'),
-                    datasets: [{ label: 'Prijs', data: data.map(i => i.price), borderColor: '#10b981', tension: 0.4, fill: true, backgroundColor: 'rgba(16,185,129,0.1)' }]
+                    datasets: [{ label: 'Prijs', data: data.map(i => i.price), borderColor: '#10b981', tension: 0.4, fill: true, backgroundColor: 'rgba(16,185,129,0.05)' }]
                 },
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
             });
@@ -218,22 +219,16 @@
             const ts=[], ss=[], gs=[];
             for(let i=0; i<6; i++) { ts.push(document.getElementById(`rt-${i}`).value); ss.push(document.getElementById(`rs-${i}`).value); gs.push(document.getElementById(`rg-${i}`).value); }
             const cfg = {
-                enabled: e.target.enabled.value === 'true',
-                strategy: e.target.strategy.value,
-                battery_capacity_kwh: parseFloat(e.target.battery_capacity_kwh.value),
-                update_interval_minutes: parseInt(e.target.update_interval_minutes.value),
-                solarman_battery_soc: e.target.solarman_battery_soc.value,
-                solar_enabled: e.target.solar_enabled.checked,
-                meteoserver_key: e.target.meteoserver_key.value,
-                meteoserver_location: e.target.meteoserver_location.value,
-                solar_arrays: solarArrays,
-                solarman_prog_times: ts, solarman_prog_socs: ss, solarman_prog_grid_charges: gs
+                enabled: e.target.enabled.value === 'true', strategy: e.target.strategy.value, battery_capacity_kwh: parseFloat(e.target.battery_capacity_kwh.value),
+                update_interval_minutes: parseInt(e.target.update_interval_minutes.value), solarman_battery_soc: e.target.solarman_battery_soc.value,
+                solar_enabled: e.target.solar_enabled.checked, meteoserver_key: e.target.meteoserver_key.value, meteoserver_location: e.target.meteoserver_location.value,
+                solar_arrays: solarArrays, solarman_prog_times: ts, solarman_prog_socs: ss, solarman_prog_grid_charges: gs
             };
             await fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(cfg) });
             alert('✅ Opgeslagen!'); load();
         };
 
-        load(); setInterval(load, 60000);
+        load(); setInterval(load, 30000);
     </script>
 </body>
 </html>
