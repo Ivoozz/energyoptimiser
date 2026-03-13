@@ -1,67 +1,35 @@
-# Stage 1: Build environment
 ARG BUILD_FROM
-FROM $BUILD_FROM AS builder
+FROM $BUILD_FROM
 
-# Set shell
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+ENV LANG C.UTF-8
 
-# Install build dependencies
+# Install dependencies
 RUN apk add --no-cache \
     python3 \
     py3-pip \
-    python3-dev \
-    build-base \
-    libffi-dev \
-    openssl-dev \
-    rust \
-    cargo \
-    git
+    py3-tz
 
-# Create a virtual environment
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Install Python requirements
+# Set working directory
 WORKDIR /app
+
+# Copy requirements and install
 COPY app/requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Stage 2: Final runtime image
-FROM $BUILD_FROM
+# Copy application files
+COPY app/ .
 
-# Set shell
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-# Install only runtime essentials
-RUN apk add --no-cache \
-    python3 \
-    tzdata
-
-# Copy venv from builder
-COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# Setup App
-WORKDIR /app
-COPY app/ /app/
-COPY run.sh /
-RUN chmod a+x /run.sh
-
-# Environment variables for performance and stability on Raspberry Pi
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV LOG_LEVEL=INFO
-
-# Expose Ingress port
-EXPOSE 8000
-
-# Metadata Labels
+# Labels
 LABEL \
     io.hass.name="EnergyOptimiser" \
     io.hass.description="Professional battery energy management with EnergyZero EPEX NL prices and Meteoserver solar forecasting." \
-    io.hass.arch="armhf|aarch64|i386|amd64" \
+    io.hass.arch="${BUILD_ARCH}" \
     io.hass.type="addon" \
-    io.hass.version="2026.3.32"
+    io.hass.version="2026.3.33" \
+    maintainer="FixjeICT <info@fixjeict.nl>"
+
+# Start script
+COPY run.sh /
+RUN chmod a+x /run.sh
 
 CMD [ "/run.sh" ]

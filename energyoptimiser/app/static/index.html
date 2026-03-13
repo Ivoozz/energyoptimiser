@@ -21,6 +21,12 @@
             width: 100%; 
             color: white; 
             transition: all 0.2s;
+            font-size: 0.875rem;
+        }
+        .input-field:focus {
+            border-color: #10b981;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
         }
         .btn-tab { 
             padding: 1rem 1.25rem; 
@@ -28,6 +34,7 @@
             color: #94a3b8; 
             border-bottom: 3px solid transparent; 
             transition: 0.3s;
+            white-space: nowrap;
         }
         .btn-tab.active { 
             color: #10b981; 
@@ -44,51 +51,24 @@
             border-radius: 0.5rem;
             border-left: 3px solid #334155;
         }
-        .wizard-step { display: none; }
-        .wizard-step.active { display: block; animation: fadeIn 0.3s; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        .animate-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 font-sans min-h-screen">
-    <!-- ONBOARDING WIZARD MODAL -->
-    <div id="onboarding-overlay" class="fixed inset-0 bg-slate-950/90 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-md">
-        <div class="glass-card w-full max-w-2xl p-8 shadow-2xl border-emerald-500/30">
-            <div id="step-1" class="wizard-step active space-y-6 text-center">
-                <div class="text-5xl">⚡</div>
-                <h2 class="text-3xl font-black">Welkom bij EnergyOptimiser</h2>
-                <p class="text-slate-400">Laten we je systeem in 3 eenvoudige stappen configureren om direct te beginnen met besparen.</p>
-                <button onclick="nextStep(2)" class="bg-emerald-600 px-8 py-3 rounded-xl font-bold hover:bg-emerald-500 transition shadow-lg shadow-emerald-900/20 w-full">Start de Setup</button>
-            </div>
-            <div id="step-2" class="wizard-step space-y-6">
-                <h2 class="text-2xl font-black text-emerald-400">Stap 1: Basis Instellingen</h2>
-                <p class="text-sm text-slate-400 italic">Selecteer je regio en de grootte van je accu.</p>
-                <div class="space-y-4">
-                    <input type="text" id="w-market" class="input-field" placeholder="Marktregio (bijv. NL)">
-                    <input type="number" id="w-cap" class="input-field" placeholder="Accu Capaciteit (kWh)">
-                </div>
-                <button onclick="nextStep(3)" class="bg-emerald-600 px-8 py-3 rounded-xl font-bold w-full">Volgende</button>
-            </div>
-            <div id="step-3" class="wizard-step space-y-6">
-                <h2 class="text-2xl font-black text-emerald-400">Stap 2: Solarman Koppeling</h2>
-                <p class="text-sm text-slate-400">Voer de SOC sensor in van je omvormer.</p>
-                <input type="text" id="w-soc" class="input-field" placeholder="sensor.solarman_battery_soc">
-                <button onclick="finishOnboarding()" class="bg-emerald-600 px-8 py-3 rounded-xl font-bold w-full">Afronden & Starten</button>
-            </div>
-        </div>
-    </div>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen pb-32">
 
-    <!-- MAIN APP -->
+    <!-- NAVIGATION -->
     <nav class="bg-slate-900/90 border-b border-slate-800 sticky top-0 z-50 backdrop-blur-md">
         <div class="container mx-auto px-4">
             <div class="flex flex-col md:flex-row justify-between items-center py-2 md:h-20 gap-4">
                 <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center">
+                    <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
                         <span class="text-2xl">⚡</span>
                     </div>
                     <div>
                         <h1 class="text-xl font-black tracking-tight leading-none">EnergyOptimiser</h1>
-                        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Admin Portal v2026.3.32</p>
+                        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">Professional Management v2026.3.33</p>
                     </div>
                 </div>
                 <div class="flex overflow-x-auto no-scrollbar w-full md:w-auto border-t border-slate-800 md:border-none">
@@ -102,30 +82,33 @@
         </div>
     </nav>
 
-    <main class="container mx-auto p-4 md:p-8 max-w-6xl pb-32">
+    <main class="container mx-auto p-4 md:p-8 max-w-6xl">
         <!-- DASHBOARD -->
         <section id="page-dashboard" class="space-y-8 animate-in">
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-                <div class="glass-card p-6 border-l-4 border-emerald-500">
+                <div class="glass-card p-6 border-l-4 border-emerald-500 shadow-xl">
                     <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Systeem Status</p>
-                    <h2 id="status-enabled" class="text-lg font-black italic">Verbinden...</h2>
+                    <h2 id="status-enabled" class="text-lg font-black italic">Laden...</h2>
                 </div>
-                <div class="glass-card p-6 border-l-4 border-blue-500">
+                <div class="glass-card p-6 border-l-4 border-blue-500 shadow-xl">
                     <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Accu SOC</p>
                     <h2 id="status-soc" class="text-lg font-black text-emerald-400">--%</h2>
                 </div>
-                <div class="glass-card p-6 border-l-4 border-yellow-500">
+                <div class="glass-card p-6 border-l-4 border-yellow-500 shadow-xl">
                     <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Zon Vandaag</p>
-                    <h2 id="status-solar" class="text-lg font-black text-yellow-400">0.0 kWh</h2>
+                    <h2 id="status-solar" class="text-lg font-black text-yellow-400">-- kWh</h2>
                 </div>
-                <div class="glass-card p-6 border-l-4 border-slate-700">
-                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Bron</p>
-                    <h2 class="text-lg font-bold text-slate-300">EPEX NL</h2>
+                <div class="glass-card p-6 border-l-4 border-slate-700 shadow-xl">
+                    <p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Prijsbron</p>
+                    <h2 class="text-lg font-bold text-slate-300">EnergyZero NL</h2>
                 </div>
             </div>
 
-            <div class="glass-card p-6 md:p-8">
-                <h3 class="text-lg font-black mb-8 flex items-center gap-2">📊 Planning & Prijsverloop (EasyEnergy NL)</h3>
+            <div class="glass-card p-6 md:p-8 shadow-2xl">
+                <div class="flex justify-between items-center mb-8">
+                    <h3 class="text-lg font-black flex items-center gap-2">📊 EPEX Spot NL Marktprijzen</h3>
+                    <span id="last-update" class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Update: --:--</span>
+                </div>
                 <div class="h-[300px] md:h-[450px] relative">
                     <canvas id="mainChart"></canvas>
                 </div>
@@ -134,51 +117,86 @@
 
         <!-- CONFIG FORM -->
         <form id="config-form" class="space-y-8">
+            <!-- SYSTEM PAGE -->
             <section id="page-system" class="hidden animate-in space-y-6">
-                <div class="glass-card p-8 space-y-8">
-                    <h2 class="text-2xl font-black text-emerald-400">Kern Instellingen</h2>
+                <div class="glass-card p-8 space-y-8 shadow-2xl">
+                    <h2 class="text-2xl font-black text-emerald-400 border-b border-slate-800 pb-4">Kern Instellingen</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="space-y-2">
+                            <label class="block text-sm font-black uppercase text-slate-400 tracking-widest">Systeem Inschakelen</label>
+                            <select name="enabled" class="input-field">
+                                <option value="true">Actief (Automatische optimalisatie)</option>
+                                <option value="false">Standby (Alleen monitoren)</option>
+                            </select>
+                        </div>
                         <div class="space-y-2">
                             <label class="block text-sm font-black uppercase text-slate-400 tracking-widest">Marktregio</label>
                             <input type="text" name="market_area" class="input-field" placeholder="NL">
-                            <p class="help-text">Vul 'NL' in voor Nederland. Dit haalt de EPEX Spot prijzen op via de EasyEnergy API, de meest stabiele bron voor dynamische contracten.</p>
+                            <p class="help-text">Op dit moment is 'NL' geoptimaliseerd voor EnergyZero EPEX Spot prijzen.</p>
                         </div>
                         <div class="space-y-2">
-                            <label class="block text-sm font-black uppercase text-slate-400 tracking-widest">Accu Capaciteit</label>
+                            <label class="block text-sm font-black uppercase text-slate-400 tracking-widest">Accu Capaciteit (kWh)</label>
                             <input type="number" step="0.1" name="battery_capacity_kwh" class="input-field">
-                            <p class="help-text">De totale netto bruikbare inhoud van je accupakket in kWh. Wordt gebruikt voor zon-prioritisatie.</p>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-sm font-black uppercase text-slate-400 tracking-widest">Update Interval (Min)</label>
+                            <input type="number" name="update_interval_minutes" class="input-field">
                         </div>
                     </div>
                 </div>
             </section>
 
+            <!-- SOLAR PAGE -->
+            <section id="page-solar" class="hidden animate-in space-y-6">
+                <div class="glass-card p-8 space-y-8 shadow-2xl">
+                    <h2 class="text-2xl font-black text-yellow-400 border-b border-slate-800 pb-4">Zonvoorspelling (Meteoserver)</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="space-y-2">
+                            <label class="block text-sm font-black uppercase text-slate-400 tracking-widest">Meteoserver API Key</label>
+                            <input type="password" name="meteoserver_key" class="input-field">
+                        </div>
+                        <div class="space-y-2">
+                            <label class="block text-sm font-black uppercase text-slate-400 tracking-widest">Locatie</label>
+                            <input type="text" name="meteoserver_location" class="input-field">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- INVERTER PAGE -->
             <section id="page-inverter" class="hidden animate-in space-y-6">
-                <div class="glass-card p-8">
-                    <h2 class="text-2xl font-black text-emerald-400">Omvormer Registers</h2>
+                <div class="glass-card p-8 shadow-2xl">
+                    <h2 class="text-2xl font-black text-emerald-400 border-b border-slate-800 pb-4">Omvormer Registers (Solarman/Modbus)</h2>
                     <div class="space-y-6 mt-6">
                         <div class="space-y-2">
                             <label class="block text-sm font-black uppercase text-slate-400 tracking-widest">Batterij SOC Entiteit</label>
                             <input type="text" name="solarman_battery_soc" class="input-field font-mono" placeholder="sensor.solarman_battery_soc">
-                            <p class="help-text text-emerald-400/80 font-bold underline">BELANGRIJK: Gebruik ALLEEN de SOC sensor die het percentage (%) aangeeft. Gebruik nooit een voltage sensor!</p>
+                            <p class="help-text">De Home Assistant entiteit die het actuele percentage van de accu aangeeft.</p>
                         </div>
-                        <div id="registers-container" class="grid grid-cols-1 gap-4"></div>
+                        
+                        <div class="border-t border-slate-800 pt-6">
+                            <h3 class="text-sm font-black uppercase text-slate-500 mb-4 tracking-widest">Programma Registers (P1 t/m P6)</h3>
+                            <div id="registers-container" class="space-y-3"></div>
+                        </div>
                     </div>
                 </div>
             </section>
 
+            <!-- LOGS PAGE -->
             <section id="page-logs" class="hidden animate-in space-y-6">
-                <div class="glass-card p-8">
-                    <h2 class="text-2xl font-black text-blue-400">Live Systeem Logs</h2>
-                    <div id="log-window" class="bg-black/50 p-6 rounded-xl font-mono text-xs overflow-y-auto h-[500px] mt-6 border border-slate-800 text-slate-300 leading-loose">
+                <div class="glass-card p-8 shadow-2xl">
+                    <h2 class="text-2xl font-black text-blue-400 border-b border-slate-800 pb-4">Live Systeem Logs</h2>
+                    <div id="log-window" class="bg-black/50 p-6 rounded-xl font-mono text-[11px] overflow-y-auto h-[500px] mt-6 border border-slate-800 text-slate-300 leading-loose no-scrollbar">
                         Wachten op logs...
                     </div>
                 </div>
             </section>
 
-            <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-slate-800 z-50">
+            <!-- SAVE BUTTON -->
+            <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/80 backdrop-blur-xl border-t border-slate-800 z-50 shadow-2xl">
                 <div class="container mx-auto max-w-6xl flex gap-4">
-                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest py-4 px-12 rounded-2xl shadow-xl shadow-emerald-900/40 transition-all w-full text-sm">
-                        💾 Instellingen Opslaan
+                    <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-widest py-4 px-12 rounded-2xl shadow-xl shadow-emerald-500/20 transition-all w-full text-sm">
+                        💾 Alle Instellingen Opslaan
                     </button>
                 </div>
             </div>
@@ -198,24 +216,30 @@
         }
 
         async function loadData() {
-            const r = await fetch(apiBase + '/api/status');
-            const data = await r.json();
-            if(!data.config.onboarding_completed) {
-                document.getElementById('onboarding-overlay').classList.remove('hidden');
-            }
-            
-            document.getElementById('status-enabled').innerText = data.config.enabled ? 'ACTIEF' : 'STANDBY';
-            document.getElementById('status-enabled').className = 'text-lg font-black ' + (data.config.enabled ? 'text-emerald-400' : 'text-rose-400');
-            document.getElementById('status-soc').innerText = data.current_soc + '%';
-            
-            // Populate form once
-            const form = document.getElementById('config-form');
-            form.market_area.value = data.config.market_area;
-            form.battery_capacity_kwh.value = data.config.battery_capacity_kwh;
-            form.solarman_battery_soc.value = data.config.solarman_battery_soc;
+            try {
+                const r = await fetch(apiBase + '/api/status');
+                const data = await r.json();
+                
+                document.getElementById('status-enabled').innerText = data.config.enabled ? 'ACTIEF' : 'STANDBY';
+                document.getElementById('status-enabled').className = 'text-lg font-black ' + (data.config.enabled ? 'text-emerald-400' : 'text-rose-400');
+                document.getElementById('status-soc').innerText = (data.current_soc || 0).toFixed(1) + '%';
+                document.getElementById('last-update').innerText = 'Update: ' + (data.last_update ? new Date(data.last_update).toLocaleTimeString('nl-NL') : '--:--');
+                
+                // Populate form
+                const form = document.getElementById('config-form');
+                form.enabled.value = data.config.enabled.toString();
+                form.market_area.value = data.config.market_area;
+                form.battery_capacity_kwh.value = data.config.battery_capacity_kwh;
+                form.update_interval_minutes.value = data.config.update_interval_minutes;
+                form.solarman_battery_soc.value = data.config.solarman_battery_soc;
+                form.meteoserver_key.value = data.config.meteoserver_key;
+                form.meteoserver_location.value = data.config.meteoserver_location;
 
-            renderRegisters(data.config);
-            updateChart(data.forecast);
+                renderRegisters(data.config);
+                updateChart(data.forecast);
+            } catch(e) {
+                console.error("Fetch error:", e);
+            }
         }
 
         function renderRegisters(config) {
@@ -223,11 +247,12 @@
             if(container.children.length > 0) return;
             for(let i=0; i<6; i++) {
                 const div = document.createElement('div');
-                div.className = 'p-4 bg-slate-800/30 rounded-xl border border-slate-800 grid grid-cols-1 md:grid-cols-3 gap-4';
+                div.className = 'grid grid-cols-1 md:grid-cols-4 gap-2 items-center bg-slate-800/20 p-3 rounded-xl border border-slate-800/50';
                 div.innerHTML = `
-                    <input type="text" id="reg-t-${i}" value="${config.solarman_prog_times[i]}" class="input-field text-xs font-mono" placeholder="Time ID">
-                    <input type="text" id="reg-s-${i}" value="${config.solarman_prog_socs[i]}" class="input-field text-xs font-mono" placeholder="SOC ID">
-                    <input type="text" id="reg-g-${i}" value="${config.solarman_prog_grid_charges[i]}" class="input-field text-xs font-mono" placeholder="Grid ID">
+                    <div class="text-[10px] font-black text-slate-500 uppercase px-2">Programma ${i+1}</div>
+                    <input type="text" id="reg-t-${i}" value="${config.solarman_prog_times[i]}" class="input-field font-mono text-[10px]" placeholder="Time Entity">
+                    <input type="text" id="reg-s-${i}" value="${config.solarman_prog_socs[i]}" class="input-field font-mono text-[10px]" placeholder="SOC Entity">
+                    <input type="text" id="reg-g-${i}" value="${config.solarman_prog_grid_charges[i]}" class="input-field font-mono text-[10px]" placeholder="Grid Entity">
                 `;
                 container.appendChild(div);
             }
@@ -236,48 +261,87 @@
         async function fetchLogs() {
             const r = await fetch(apiBase + '/api/logs');
             const data = await r.json();
-            document.getElementById('log-window').innerHTML = data.logs.join('<br>');
-        }
-
-        function nextStep(s) {
-            document.querySelectorAll('.wizard-step').forEach(step => step.classList.remove('active'));
-            document.getElementById('step-' + s).classList.add('active');
-        }
-
-        async function finishOnboarding() {
-            const config = {
-                onboarding_completed: true,
-                market_area: document.getElementById('w-market').value,
-                battery_capacity_kwh: parseFloat(document.getElementById('w-cap').value),
-                solarman_battery_soc: document.getElementById('w-soc').value
-            };
-            await fetch(apiBase + '/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(config) });
-            document.getElementById('onboarding-overlay').classList.add('hidden');
-            loadData();
+            const logWindow = document.getElementById('log-window');
+            logWindow.innerHTML = data.logs.join('<br>');
+            logWindow.scrollTop = logWindow.scrollHeight;
         }
 
         function updateChart(forecast) {
             const ctx = document.getElementById('mainChart').getContext('2d');
+            const labels = forecast.map(f => {
+                const d = new Date(f.time);
+                return d.getHours().toString().padStart(2, '0') + ':00';
+            });
+            const prices = forecast.map(f => f.price);
+            
             if(chart) chart.destroy();
             chart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: forecast.map(f => new Date(f.time).getHours() + ':00'),
-                    datasets: [{ label: 'Prijs (€)', data: forecast.map(f => f.price), borderColor: '#10b981', tension: 0.4 }]
+                    labels: labels,
+                    datasets: [{
+                        label: 'EPEX Prijs (€/kWh)',
+                        data: prices,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderWidth: 3,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#10b981',
+                        fill: true,
+                        tension: 0.4
+                    }]
                 },
-                options: { responsive: true, maintainAspectRatio: false }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { 
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#94a3b8', font: { size: 10 } }
+                        },
+                        x: { 
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8', font: { size: 10 } }
+                        }
+                    }
+                }
             });
         }
 
         document.getElementById('config-form').onsubmit = async (e) => {
             e.preventDefault();
+            const prog_times = [];
+            const prog_socs = [];
+            const prog_grid = [];
+            for(let i=0; i<6; i++) {
+                prog_times.push(document.getElementById(`reg-t-${i}`).value);
+                prog_socs.push(document.getElementById(`reg-s-${i}`).value);
+                prog_grid.push(document.getElementById(`reg-g-${i}`).value);
+            }
+
             const config = {
+                enabled: e.target.enabled.value === 'true',
                 market_area: e.target.market_area.value,
                 battery_capacity_kwh: parseFloat(e.target.battery_capacity_kwh.value),
-                solarman_battery_soc: e.target.solarman_battery_soc.value
+                update_interval_minutes: parseInt(e.target.update_interval_minutes.value),
+                solarman_battery_soc: e.target.solarman_battery_soc.value,
+                meteoserver_key: e.target.meteoserver_key.value,
+                meteoserver_location: e.target.meteoserver_location.value,
+                solarman_prog_times: prog_times,
+                solarman_prog_socs: prog_socs,
+                solarman_prog_grid_charges: prog_grid
             };
-            await fetch(apiBase + '/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(config) });
-            alert('Instellingen opgeslagen!');
+            
+            const r = await fetch(apiBase + '/api/config', { 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'}, 
+                body: JSON.stringify(config) 
+            });
+            if(r.ok) alert('Instellingen succesvol opgeslagen en gesynchroniseerd.');
+            loadData();
         };
 
         setInterval(loadData, 60000);

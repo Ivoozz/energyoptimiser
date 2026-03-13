@@ -43,11 +43,10 @@ logger = logging.getLogger("energy-optimiser")
 app = FastAPI(docs_url=None, redoc_url=None)
 
 CONFIG_PATH = "/data/config.json"
-VERSION = "v2026.3.32"
+VERSION = "v2026.3.33"
 
 DEFAULT_CONFIG = {
     "enabled": False,
-    "onboarding_completed": False,
     "market_area": "NL",
     "currency": "EUR",
     "strategy": "Maximize Profit",
@@ -59,9 +58,9 @@ DEFAULT_CONFIG = {
     "max_charge_rate_kw": 2.5,
     "update_interval_minutes": 60,
     "solarman_battery_soc": "sensor.solarman_battery_soc",
-    "solarman_prog_times": ["number.solarman_prog1_time"] * 6,
-    "solarman_prog_socs": ["number.solarman_prog1_soc"] * 6,
-    "solarman_prog_grid_charges": ["switch.solarman_prog1_grid_charge"] * 6,
+    "solarman_prog_times": ["number.solarman_prog1_time", "number.solarman_prog2_time", "number.solarman_prog3_time", "number.solarman_prog4_time", "number.solarman_prog5_time", "number.solarman_prog6_time"],
+    "solarman_prog_socs": ["number.solarman_prog1_soc", "number.solarman_prog2_soc", "number.solarman_prog3_soc", "number.solarman_prog4_soc", "number.solarman_prog5_soc", "number.solarman_prog6_soc"],
+    "solarman_prog_grid_charges": ["switch.solarman_prog1_grid_charge", "switch.solarman_prog2_grid_charge", "switch.solarman_prog3_grid_charge", "switch.solarman_prog4_grid_charge", "switch.solarman_prog5_grid_charge", "switch.solarman_prog6_grid_charge"],
     "meteoserver_key": "",
     "meteoserver_location": "Utrecht",
     "solar_enabled": False,
@@ -98,11 +97,11 @@ class Optimizer:
         return DEFAULT_CONFIG
 
     def save_config(self, new_config: Dict[str, Any]):
-        self.config = new_config
+        self.config = {**self.config, **new_config}
         try:
             os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
             with open(CONFIG_PATH, "w") as f:
-                json.dump(new_config, f, indent=2)
+                json.dump(self.config, f, indent=2)
             logger.info("Configuration saved successfully.")
         except Exception as e:
             logger.error(f"Failed to save config: {e}")
@@ -123,29 +122,34 @@ class Optimizer:
             async with session.get(url, headers=headers) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    self.current_soc = float(data.get("state", 50.0))
+                    try:
+                        self.current_soc = float(data.get("state", 50.0))
+                    except (ValueError, TypeError):
+                        self.current_soc = 50.0
         except Exception as e:
             logger.error(f"HA SOC Error: {e}")
 
     async def fetch_prices(self):
-        """Fetches electricity prices from EasyEnergy (Alternative to EnergyZero)."""
-        logger.info("Fetching EasyEnergy prices...")
-        now = datetime.now(pytz.UTC)
-        start = now.strftime("%Y-%m-%dT00:00:00")
-        url = f"https://mijn.easyenergy.com/nl/api/tariff/getapxtariffs?startTimestamp={start}&endTimestamp={start}" # Simplified for now
+        """Fetches electricity prices from EnergyZero (EPEX Spot NL)."""
+        logger.info("Fetching EnergyZero prices...")
+        now = datetime.now(pytz.timezone(self.timezone))
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = start + timedelta(days=2)
         
-        # Real logic: EasyEnergy returns a list of tariffs
+        url = f"https://api.energyzero.nl/v1/energyprices?fromDate={start.isoformat()}&toDate={end.isoformat()}&interval=4&usageType=1&inclBtw=true"
+        
         try:
             session = await self.get_session()
             async with session.get(url) as resp:
                 if resp.status == 200:
                     data = await resp.json()
+                    prices = data.get("Prices", [])
                     new_prices = []
-                    for item in data:
-                        dt = datetime.fromisoformat(item["Timestamp"].replace('Z', '+00:00'))
-                        new_prices.append({"timestamp": dt, "value": float(item["TariffUsage"])})
+                    for item in prices:
+                        dt = datetime.fromisoformat(item["readingDate"].replace('Z', '+00:00'))
+                        new_prices.append({"timestamp": dt, "value": float(item["price"])})
                     self.prices = sorted(new_prices, key=lambda x: x["timestamp"])
-                    logger.info(f"Fetched {len(self.prices)} prices.")
+                    logger.info(f"Fetched {len(self.prices)} prices from EnergyZero.")
                 else:
                     logger.error(f"Price API Error: {resp.status}")
         except Exception as e:
