@@ -4,7 +4,7 @@ import aiohttp, asyncio, os, json, logging, pytz, sys
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 
-# Advanced Logging
+# Advanced Logging with Buffer
 class LogBufferHandler(logging.Handler):
     def __init__(self, capacity=200):
         super().__init__()
@@ -20,10 +20,10 @@ logging.basicConfig(level=logging.INFO, format='%(message)s', handlers=[logging.
 logger = logging.getLogger("energy-optimiser")
 
 app = FastAPI(docs_url=None, redoc_url=None)
-CONFIG_PATH, VERSION = "/data/config.json", "2026.3.39"
+CONFIG_PATH, VERSION = "/data/config.json", "2026.3.40"
 
 DEFAULT_CONFIG = {
-    "enabled": False, "market_area": "NL", "strategy": "Maximize Profit",
+    "enabled": False, "market_area": "NL", "strategy": "Hoogste Verdienen",
     "battery_capacity_kwh": 5.0, "battery_min_soc": 20.0, "battery_max_soc": 100.0,
     "charge_threshold_pct": 85, "discharge_threshold_pct": 115, "max_charge_rate_kw": 2.5,
     "update_interval_minutes": 60, "solarman_battery_soc": "sensor.solarman_battery_soc",
@@ -51,18 +51,31 @@ class Optimizer:
     def save_config(self, cfg):
         self.config.update(cfg)
         with open(CONFIG_PATH, "w") as f: json.dump(self.config, f, indent=2)
-        logger.info(f"Configuration saved. Active: {self.config['enabled']}")
+        logger.info("Instellingen opgeslagen.")
 
     async def get_session(self):
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
         return self._session
 
-    async def fetch_data(self, is_test=False):
-        if is_test: logger.info("--- STARTING SYSTEM TESTRUN ---")
-        session = await self.get_session()
+    async def write_to_ha(self, entity_id: str, value: Any):
+        token = os.getenv("SUPERVISOR_TOKEN")
+        if not token or not entity_id or "not_set" in entity_id: return
+        domain = entity_id.split(".")[0]
+        service = "set_value" if domain == "number" else ("turn_on" if value in [True, "on", "ON"] else "turn_off")
+        url = f"http://supervisor/core/api/services/{domain}/{service}"
+        data = {"entity_id": entity_id}
+        if domain == "number": data["value"] = value
         
-        # HA Sync
+        try:
+            session = await self.get_session()
+            async with session.post(url, headers={"Authorization": f"Bearer {token}"}, json=data) as r:
+                if r.status != 200: logger.error(f"HA Write Error {entity_id}: {r.status}")
+        except Exception as e: logger.error(f"HA Connection Error: {e}")
+
+    async def fetch_data(self):
+        session = await self.get_session()
+        # Get SOC
         token, entity = os.getenv("SUPERVISOR_TOKEN"), self.config.get("solarman_battery_soc")
         if token and entity:
             try:
@@ -71,11 +84,9 @@ class Optimizer:
                         data = await r.json()
                         self.current_soc = float(data.get("state", 50.0))
                         self.api_errors["ha"] = "OK"
-                        if is_test: logger.info(f"Test: Successfully fetched SOC: {self.current_soc}%")
-                    else: self.api_errors["ha"] = f"Error {r.status}"
-            except Exception as e: self.api_errors["ha"] = "Connection Failed"
+            except: self.api_errors["ha"] = "Error"
 
-        # Prices
+        # Get Prices
         try:
             now = datetime.now(pytz.timezone("Europe/Amsterdam"))
             start, end = now.replace(hour=0,min=0,sec=0), now.replace(hour=0,min=0,sec=0) + timedelta(days=2)
@@ -83,16 +94,56 @@ class Optimizer:
             async with session.get(url) as r:
                 if r.status == 200:
                     data = await r.json()
-                    self.prices = [{"time": p["readingDate"], "price": p["price"]} for p in data.get("Prices", [])]
-                    avg = sum(p["price"] for p in self.prices) / len(self.prices) if self.prices else 0
-                    self.forecast = [{"time": p["time"], "price": p["price"], "action": "CHARGE" if p["price"] < avg * 0.9 else "IDLE"} for p in self.prices[:24]]
-                    self.last_update = datetime.now()
+                    raw_prices = [{"time": p["readingDate"], "price": float(p["price"])} for p in data.get("Prices", [])]
+                    self.prices = sorted(raw_prices, key=lambda x: x["time"])
                     self.api_errors["prices"] = "OK"
-                    if is_test: logger.info(f"Test: Fetched {len(self.prices)} price points. Action plan generated.")
-                else: self.api_errors["prices"] = f"Error {r.status}"
-        except Exception as e: self.api_errors["prices"] = "Fetch Failed"
+                    self.optimize()
+        except: self.api_errors["prices"] = "Error"
 
-        if is_test: logger.info("--- TESTRUN COMPLETED SUCCESSFULLY ---")
+    def optimize(self):
+        if not self.prices: return
+        strategy = self.config.get("strategy", "Hoogste Verdienen")
+        logger.info(f"Start optimalisatie via strategie: {strategy}")
+        
+        sorted_prices = sorted(self.prices[:24], key=lambda x: x["price"])
+        cheap_hours = [p["time"] for p in sorted_prices[:6]]
+        expensive_hours = [p["time"] for p in sorted_prices[-6:]]
+        
+        slots = []
+        if strategy == "Hoogste Verdienen":
+            # Arbitrage: Volledig laden bij goedkoop, ontladen bij duur
+            for i in range(6):
+                time_dt = datetime.fromisoformat(self.prices[i*4]["time"].replace("Z", "+00:00"))
+                is_cheap = self.prices[i*4]["time"] in cheap_hours
+                slots.append({
+                    "time": time_dt.strftime("%H:%M"),
+                    "soc": 100 if is_cheap else self.config["battery_min_soc"],
+                    "grid": "on" if is_cheap else "off"
+                })
+        elif strategy == "Hoogst eigen gebruik":
+            # Solar focus: Accu leegmaken voor de zon komt
+            for i in range(6):
+                hour = i * 4
+                is_morning = 4 <= hour <= 10
+                slots.append({
+                    "time": f"{hour:02d}:00",
+                    "soc": 20 if is_morning else 100,
+                    "grid": "off"
+                })
+        else: # 0 op de meter
+            for i in range(6):
+                slots.append({"time": f"{i*4:02d}:00", "soc": 50, "grid": "off"})
+
+        self.forecast = [{"time": s["time"], "price": 0, "action": "CHARGE" if s["grid"]=="on" else "IDLE"} for s in slots]
+        asyncio.create_task(self.apply_to_inverter(slots))
+
+    async def apply_to_inverter(self, slots):
+        logger.info("Instellingen naar omvormer pushen...")
+        for i, slot in enumerate(slots[:6]):
+            await self.write_to_ha(self.config["solarman_prog_times"][i], slot["time"])
+            await self.write_to_ha(self.config["solarman_prog_socs"][i], slot["soc"])
+            await self.write_to_ha(self.config["solarman_prog_grid_charges"][i], slot["grid"])
+        logger.info("Inverter succesvol bijgewerkt.")
 
     async def loop(self):
         while True:
@@ -105,21 +156,16 @@ state = Optimizer()
 async def startup(): asyncio.create_task(state.loop())
 
 @app.get("/api/status")
-async def get_status():
-    return {"config": state.config, "forecast": state.forecast, "last_update": state.last_update, "current_soc": state.current_soc, "api_errors": state.api_errors, "version": VERSION}
+async def status(): return {"config": state.config, "forecast": state.forecast, "last_update": datetime.now(), "current_soc": state.current_soc, "api_errors": state.api_errors, "version": VERSION}
 
 @app.get("/api/logs")
 async def get_logs(): return {"logs": log_buffer.buffer}
 
 @app.post("/api/testrun")
-async def run_test():
-    await state.fetch_data(is_test=True)
-    return {"status": "ok"}
+async def test(): await state.fetch_data(); return {"ok": True}
 
 @app.post("/api/config")
-async def update_config(cfg: dict):
-    state.save_config(cfg)
-    return {"status": "ok"}
+async def update_cfg(cfg: dict): state.save_config(cfg); return {"ok": True}
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
