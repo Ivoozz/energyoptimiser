@@ -1,237 +1,88 @@
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
-import aiohttp
-import asyncio
-import os
-import json
-import logging
-import sys
-import math
-import gc
-from datetime import datetime, time, timedelta
-import pytz
-from typing import Optional, List, Dict, Any
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+import aiohttp, asyncio, os, json, logging, pytz
+from datetime import datetime, timedelta
+from typing import Dict, Any
 
-# Professional Logging with File and Stream handler
-LOG_FILE = "/data/energy-optimiser.log"
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-
-class LogBufferHandler(logging.Handler):
-    def __init__(self, capacity=100):
-        super().__init__()
-        self.capacity = capacity
-        self.buffer = []
-
-    def emit(self, record):
-        msg = self.format(record)
-        self.buffer.append(msg)
-        if len(self.buffer) > self.capacity:
-            self.buffer.pop(0)
-
-log_buffer = LogBufferHandler()
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL),
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler(LOG_FILE),
-        log_buffer
-    ]
-)
+# Basis Setup
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("energy-optimiser")
-
 app = FastAPI(docs_url=None, redoc_url=None)
 
-CONFIG_PATH = "/data/config.json"
-VERSION = "v2026.3.33"
-
+CONFIG_PATH, VERSION = "/data/config.json", "2026.3.34"
 DEFAULT_CONFIG = {
-    "enabled": False,
-    "market_area": "NL",
-    "currency": "EUR",
-    "strategy": "Maximize Profit",
-    "charge_threshold_pct": 85,
-    "discharge_threshold_pct": 115,
-    "battery_capacity_kwh": 5.0,
-    "battery_min_soc": 20.0,
-    "battery_max_soc": 100.0,
-    "max_charge_rate_kw": 2.5,
-    "update_interval_minutes": 60,
+    "enabled": False, "market_area": "NL", "battery_capacity_kwh": 5.0, "update_interval_minutes": 60,
     "solarman_battery_soc": "sensor.solarman_battery_soc",
-    "solarman_prog_times": ["number.solarman_prog1_time", "number.solarman_prog2_time", "number.solarman_prog3_time", "number.solarman_prog4_time", "number.solarman_prog5_time", "number.solarman_prog6_time"],
-    "solarman_prog_socs": ["number.solarman_prog1_soc", "number.solarman_prog2_soc", "number.solarman_prog3_soc", "number.solarman_prog4_soc", "number.solarman_prog5_soc", "number.solarman_prog6_soc"],
-    "solarman_prog_grid_charges": ["switch.solarman_prog1_grid_charge", "switch.solarman_prog2_grid_charge", "switch.solarman_prog3_grid_charge", "switch.solarman_prog4_grid_charge", "switch.solarman_prog5_grid_charge", "switch.solarman_prog6_grid_charge"],
-    "meteoserver_key": "",
-    "meteoserver_location": "Utrecht",
-    "solar_enabled": False,
-    "solar_arrays": [{"name": "Dak", "kwp": 4.0, "tilt": 35, "azimuth": 180, "efficiency": 0.85}]
+    "solarman_prog_times": [f"number.solarman_prog{i}_time" for i in range(1,7)],
+    "solarman_prog_socs": [f"number.solarman_prog{i}_soc" for i in range(1,7)],
+    "solarman_prog_grid_charges": [f"switch.solarman_prog{i}_grid_charge" for i in range(1,7)],
+    "meteoserver_key": "", "meteoserver_location": "Utrecht"
 }
-
-@app.middleware("http")
-async def ingress_middleware(request: Request, call_next):
-    ingress_path = request.headers.get("X-Ingress-Path")
-    if ingress_path:
-        request.scope["root_path"] = ingress_path.rstrip("/")
-    return await call_next(request)
 
 class Optimizer:
     def __init__(self):
         self.config = self.load_config()
-        self.prices = []
-        self.weather = []
-        self.forecast = []
-        self.inverter_slots = []
-        self.last_update = None
-        self.timezone = os.getenv("TZ", "Europe/Amsterdam")
-        self.current_soc = 50.0
-        self._session: Optional[aiohttp.ClientSession] = None
+        self.prices, self.forecast, self.last_update = [], [], None
+        self.current_soc, self._session = 50.0, None
 
-    def load_config(self) -> Dict[str, Any]:
+    def load_config(self):
         if os.path.exists(CONFIG_PATH):
-            try:
-                with open(CONFIG_PATH, "r") as f:
-                    data = json.load(f)
-                    return {**DEFAULT_CONFIG, **data}
-            except Exception as e:
-                logger.error(f"Config load failed: {e}")
+            with open(CONFIG_PATH, "r") as f: return {**DEFAULT_CONFIG, **json.load(f)}
         return DEFAULT_CONFIG
 
-    def save_config(self, new_config: Dict[str, Any]):
-        self.config = {**self.config, **new_config}
-        try:
-            os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
-            with open(CONFIG_PATH, "w") as f:
-                json.dump(self.config, f, indent=2)
-            logger.info("Configuration saved successfully.")
-        except Exception as e:
-            logger.error(f"Failed to save config: {e}")
+    def save_config(self, new_config):
+        self.config.update(new_config)
+        with open(CONFIG_PATH, "w") as f: json.dump(self.config, f, indent=2)
+        logger.info("Config saved.")
 
-    async def get_session(self) -> aiohttp.ClientSession:
+    async def get_session(self):
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
         return self._session
 
-    async def fetch_soc_from_ha(self):
-        token = os.getenv("SUPERVISOR_TOKEN")
-        entity_id = self.config.get("solarman_battery_soc")
-        if not token or not entity_id: return
-        url = f"http://supervisor/core/api/states/{entity_id}"
-        headers = {"Authorization": f"Bearer {token}"}
-        try:
-            session = await self.get_session()
-            async with session.get(url, headers=headers) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    try:
-                        self.current_soc = float(data.get("state", 50.0))
-                    except (ValueError, TypeError):
-                        self.current_soc = 50.0
-        except Exception as e:
-            logger.error(f"HA SOC Error: {e}")
-
-    async def fetch_prices(self):
-        """Fetches electricity prices from EnergyZero (EPEX Spot NL)."""
-        logger.info("Fetching EnergyZero prices...")
-        now = datetime.now(pytz.timezone(self.timezone))
-        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        end = start + timedelta(days=2)
+    async def fetch_data(self):
+        session = await self.get_session()
+        # Fetch SOC
+        token, entity = os.getenv("SUPERVISOR_TOKEN"), self.config.get("solarman_battery_soc")
+        if token and entity:
+            async with session.get(f"http://supervisor/core/api/states/{entity}", headers={"Authorization": f"Bearer {token}"}) as r:
+                if r.status == 200: 
+                    data = await r.json()
+                    try: self.current_soc = float(data.get("state", 50.0))
+                    except: self.current_soc = 50.0
         
+        # Fetch EnergyZero Prices
+        now = datetime.now(pytz.timezone("Europe/Amsterdam"))
+        start, end = now.replace(hour=0,min=0,sec=0), now.replace(hour=0,min=0,sec=0) + timedelta(days=2)
         url = f"https://api.energyzero.nl/v1/energyprices?fromDate={start.isoformat()}&toDate={end.isoformat()}&interval=4&usageType=1&inclBtw=true"
-        
-        try:
-            session = await self.get_session()
-            async with session.get(url) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    prices = data.get("Prices", [])
-                    new_prices = []
-                    for item in prices:
-                        dt = datetime.fromisoformat(item["readingDate"].replace('Z', '+00:00'))
-                        new_prices.append({"timestamp": dt, "value": float(item["price"])})
-                    self.prices = sorted(new_prices, key=lambda x: x["timestamp"])
-                    logger.info(f"Fetched {len(self.prices)} prices from EnergyZero.")
-                else:
-                    logger.error(f"Price API Error: {resp.status}")
-        except Exception as e:
-            logger.error(f"Price Connection Error: {e}")
+        async with session.get(url) as r:
+            if r.status == 200:
+                data = await r.json()
+                self.prices = [{"time": p["readingDate"], "price": p["price"]} for p in data.get("Prices", [])]
+                avg = sum(p["price"] for p in self.prices) / len(self.prices) if self.prices else 0
+                self.forecast = [{"time": p["time"], "price": p["price"], "action": "CHARGE" if p["price"] < avg * 0.9 else "IDLE"} for p in self.prices[:24]]
+                self.last_update = datetime.now()
+                logger.info("Data sync complete.")
 
-    async def fetch_weather(self):
-        key = self.config.get("meteoserver_key")
-        loc = self.config.get("meteoserver_location")
-        if not key or not loc: return
-        url = f"https://data.meteoserver.nl/api/uurverwachting.php?key={key}&locatie={loc}"
-        try:
-            session = await self.get_session()
-            async with session.get(url) as resp:
-                if resp.status == 200:
-                    text = await resp.text()
-                    data = json.loads(text)
-                    self.weather = data.get("data", [])
-                    logger.info(f"Weather updated for {loc}")
-        except Exception as e:
-            logger.error(f"Weather error: {e}")
-
-    def calculate_forecast(self):
-        if not self.prices: return
-        avg_p = sum(p["value"] for p in self.prices) / len(self.prices)
-        tz = pytz.timezone(self.timezone)
-        new_forecast = []
-        for p in self.prices[:24]:
-            lt = p["timestamp"].astimezone(tz)
-            action = "CHARGE" if p["value"] < avg_p * 0.8 else "IDLE"
-            new_forecast.append({
-                "time": lt.isoformat(),
-                "price": round(p["value"], 4),
-                "action": action,
-                "grid_charge": "on" if action == "CHARGE" else "off"
-            })
-        self.forecast = new_forecast
-        self.last_update = datetime.now()
-
-    async def apply_to_ha(self, dry_run=False):
-        if not self.forecast or not self.config.get("enabled") and not dry_run: return
-        logger.info(f"Syncing to HA... DryRun: {dry_run}")
-        # Simplified sync logic
-        pass
-
-    async def loop(self):
+    async def run(self):
         while True:
-            if self.config.get("enabled"):
-                await self.fetch_soc_from_ha()
-                await self.fetch_prices()
-                await self.fetch_weather()
-                self.calculate_forecast()
-                await self.apply_to_ha()
+            if self.config.get("enabled"): await self.fetch_data()
             await asyncio.sleep(self.config.get("update_interval_minutes", 60) * 60)
 
 state = Optimizer()
 
 @app.on_event("startup")
-async def startup():
-    asyncio.create_task(state.loop())
+async def startup(): asyncio.create_task(state.run())
 
 @app.get("/api/status")
-async def get_status():
-    return {
-        "config": state.config,
-        "forecast": state.forecast,
-        "last_update": state.last_update.isoformat() if state.last_update else None,
-        "current_soc": state.current_soc
-    }
-
-@app.get("/api/logs")
-async def get_logs():
-    return {"logs": log_buffer.buffer}
+async def status(): return {"config": state.config, "forecast": state.forecast, "last_update": state.last_update, "current_soc": state.current_soc}
 
 @app.post("/api/config")
-async def update_config(new_config: dict):
-    state.save_config(new_config)
-    return {"status": "ok"}
+async def update_cfg(cfg: dict): state.save_config(cfg); return {"ok": True}
 
 @app.get("/", response_class=HTMLResponse)
-async def serve_index():
-    with open("static/index.html", "r") as f:
-        return f.read()
+async def index():
+    with open("static/index.html", "r") as f: return f.read()
 
 if __name__ == "__main__":
     import uvicorn
