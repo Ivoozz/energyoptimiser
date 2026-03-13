@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EnergyOptimiser Ultimate v2026.3.40</title>
+    <title>EnergyOptimiser Ultimate v2026.3.41</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -25,7 +25,7 @@
                 <div class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg font-black">⚡</div>
                 <div>
                     <h1 class="text-lg font-black tracking-tight leading-tight">EnergyOptimiser</h1>
-                    <p id="v-string" class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">v2026.3.40</p>
+                    <p id="v-string" class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">v2026.3.41</p>
                 </div>
             </div>
             <div class="flex overflow-x-auto no-scrollbar">
@@ -49,15 +49,18 @@
                     <p class="text-[10px] font-black text-slate-500 uppercase mb-2">Accu SOC</p>
                     <h2 id="s-soc" class="text-2xl font-black text-emerald-400">-%</h2>
                 </div>
-                <div class="glass p-6 border-l-4 border-slate-700 text-center">
-                    <p class="text-[10px] font-black text-slate-500 uppercase mb-2">Sync</p>
-                    <h2 id="s-update" class="text-lg font-bold">--:--</h2>
+                <div class="glass p-6 border-l-4 border-slate-700">
+                    <p class="text-[10px] font-black text-slate-500 uppercase mb-2">Nordpool NL</p>
+                    <div class="flex flex-wrap gap-2 mt-1">
+                        <span id="b-prices" class="status-badge badge-offline">Prices</span>
+                        <span id="b-ha" class="status-badge badge-offline">HA Sync</span>
+                    </div>
                 </div>
                 <div class="glass p-6 border-l-4 border-blue-700 flex flex-col justify-center">
                     <button onclick="runTest()" class="bg-blue-600 hover:bg-blue-500 py-2 rounded text-[10px] font-black uppercase">🧪 Testrun</button>
                 </div>
             </div>
-            <div class="glass p-8 h-[400px]">
+            <div class="glass p-8 h-[400px] shadow-2xl">
                 <canvas id="priceChart"></canvas>
             </div>
         </section>
@@ -74,25 +77,24 @@
                                 <option value="Hoogst eigen gebruik">Hoogst eigen gebruik (Solar focus)</option>
                                 <option value="0 op de meter">0 op de meter (Balans)</option>
                             </select>
-                            <p class="help-text">Kies hoe de accu moet reageren op prijzen en zon.</p>
+                            <p class="help-text">Kies hoe de accu moet reageren op de Nordpool prijzen en zonnestroom.</p>
                         </div>
                         <div>
-                            <label class="text-[10px] uppercase font-black text-slate-400">Enabled</label>
-                            <select name="enabled" class="input"><option value="true">Actief</option><option value="false">Standby</option></select>
+                            <label class="text-[10px] uppercase font-black text-slate-400">Systeem Inschakelen</label>
+                            <select name="enabled" class="input"><option value="true">Actief (Schrijft naar Inverter)</option><option value="false">Standby (Alleen monitoren)</option></select>
                         </div>
                         <div>
                             <label class="text-[10px] uppercase font-black text-slate-400">Accu Capaciteit (kWh)</label>
                             <input type="number" step="0.1" name="battery_capacity_kwh" class="input">
                         </div>
                         <div>
-                            <label class="text-[10px] uppercase font-black text-slate-400">Max Laadkracht (kW)</label>
+                            <label class="text-[10px] uppercase font-black text-slate-400">Max Laadsnelheid (kW)</label>
                             <input type="number" step="0.1" name="max_charge_rate_kw" class="input">
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- SOLAR & INVERTER RESTORED FULLY -->
             <section id="p-solar" class="hidden space-y-6">
                 <div class="glass p-8 space-y-8">
                     <div class="flex justify-between items-center"><h2 class="text-2xl font-black text-yellow-400">Zonnepanelen</h2><input type="checkbox" name="solar_enabled" class="w-6 h-6 accent-emerald-500"></div>
@@ -103,21 +105,24 @@
 
             <section id="p-inverter" class="hidden space-y-6">
                 <div class="glass p-8 space-y-8">
-                    <h2 class="text-2xl font-black text-emerald-400 border-b border-slate-800 pb-4">Inverter Registers</h2>
-                    <div><label class="text-[10px] uppercase font-black text-slate-400">SOC Sensor</label><input type="text" name="solarman_battery_soc" class="input font-mono"></div>
-                    <div id="reg-list" class="space-y-2"></div>
+                    <h2 class="text-2xl font-black text-emerald-400 border-b border-slate-800 pb-4">HA Entiteiten (Inverter)</h2>
+                    <div><label class="text-[10px] uppercase font-black text-slate-400">SOC Sensor Entity</label><input type="text" name="solarman_battery_soc" class="input font-mono"></div>
+                    <div id="reg-list" class="space-y-2 mt-4"></div>
                 </div>
             </section>
 
             <section id="p-logs" class="hidden">
                 <div class="glass p-8">
-                    <h2 class="text-xl font-black text-blue-400 mb-4 uppercase">Logs</h2>
-                    <div id="log-window" class="bg-black/50 p-4 rounded h-[500px] overflow-y-auto font-mono text-[10px] text-slate-400 no-scrollbar">Laden...</div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-black text-blue-400 uppercase">Applicatie Logboek</h2>
+                        <button type="button" onclick="fetchLogs()" class="bg-slate-800 px-3 py-1 rounded text-[10px] font-black uppercase">Refresh</button>
+                    </div>
+                    <div id="log-window" class="bg-black/50 p-4 rounded h-[550px] overflow-y-auto font-mono text-[10px] text-slate-400 no-scrollbar border border-slate-800">Laden...</div>
                 </div>
             </section>
 
             <div class="fixed bottom-0 left-0 right-0 p-6 bg-slate-950/90 backdrop-blur-md border-t border-slate-800 z-50">
-                <div class="container mx-auto max-w-5xl"><button type="submit" class="bg-emerald-600 w-full py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-emerald-500 shadow-xl shadow-emerald-900/40 transition-all">💾 Instellingen Opslaan</button></div>
+                <div class="container mx-auto max-w-5xl"><button type="submit" class="bg-emerald-600 w-full py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-emerald-500 transition shadow-xl shadow-emerald-900/40">💾 Instellingen Opslaan</button></div>
             </div>
         </form>
     </main>
@@ -125,50 +130,57 @@
     <script>
         let chart = null, solarArrays = [];
         async function load() {
-            const r = await fetch('/api/status'), d = await r.json();
-            document.getElementById('s-enabled').innerText = d.config.enabled ? 'ACTIEF' : 'STANDBY';
-            document.getElementById('s-enabled').className = d.config.enabled ? 'text-xl font-black italic text-emerald-400' : 'text-xl font-black italic text-rose-400';
-            document.getElementById('s-soc').innerText = (d.current_soc || 0).toFixed(1) + '%';
-            document.getElementById('s-update').innerText = d.last_update ? new Date(d.last_update).toLocaleTimeString('nl-NL') : '--:--';
-            document.getElementById('v-string').innerText = d.version;
-            
-            updateBadge('b-prices', d.api_errors.prices);
-            updateBadge('b-weather', d.api_errors.weather);
-            updateBadge('b-ha', d.api_errors.ha);
+            try {
+                const r = await fetch('/api/status'), d = await r.json();
+                document.getElementById('s-enabled').innerText = d.config.enabled ? 'ACTIEF' : 'STANDBY';
+                document.getElementById('s-enabled').className = d.config.enabled ? 'text-xl font-black italic text-emerald-400' : 'text-xl font-black italic text-rose-400';
+                document.getElementById('s-soc').innerText = (d.current_soc || 0).toFixed(1) + '%';
+                document.getElementById('s-update').innerText = d.last_update ? new Date(d.last_update).toLocaleTimeString('nl-NL') : '--:--';
+                document.getElementById('v-string').innerText = d.version;
+                
+                updateBadge('b-prices', d.api_errors.prices);
+                updateBadge('b-ha', d.api_errors.ha);
 
-            const f = document.getElementById('cfg-form');
-            f.enabled.value = d.config.enabled.toString();
-            f.strategy.value = d.config.strategy;
-            f.battery_capacity_kwh.value = d.config.battery_capacity_kwh;
-            f.max_charge_rate_kw.value = d.config.max_charge_rate_kw;
-            f.solarman_battery_soc.value = d.config.solarman_battery_soc;
-            f.solar_enabled.checked = d.config.solar_enabled;
+                const f = document.getElementById('cfg-form');
+                f.enabled.value = d.config.enabled.toString();
+                f.strategy.value = d.config.strategy;
+                f.battery_capacity_kwh.value = d.config.battery_capacity_kwh;
+                f.max_charge_rate_kw.value = d.config.max_charge_rate_kw;
+                f.solarman_battery_soc.value = d.config.solarman_battery_soc;
+                f.solar_enabled.checked = d.config.solar_enabled;
 
-            const rList = document.getElementById('reg-list');
-            if(!rList.children.length) {
-                for(let i=0; i<6; i++) {
-                    const div = document.createElement('div'); div.className = 'grid grid-cols-4 gap-2 bg-slate-900/50 p-2 rounded border border-slate-800';
-                    div.innerHTML = `<div class="text-[10px] font-bold text-slate-500 self-center">P${i+1}</div>
-                                     <input type="text" id="rt-${i}" value="${d.config.solarman_prog_times[i]}" class="input text-[10px] font-mono">
-                                     <input type="text" id="rs-${i}" value="${d.config.solarman_prog_socs[i]}" class="input text-[10px] font-mono">
-                                     <input type="text" id="rg-${i}" value="${d.config.solarman_prog_grid_charges[i]}" class="input text-[10px] font-mono">`;
-                    rList.appendChild(div);
+                const rList = document.getElementById('reg-list');
+                if(!rList.children.length) {
+                    for(let i=0; i<6; i++) {
+                        const div = document.createElement('div'); div.className = 'grid grid-cols-4 gap-2 bg-slate-900/50 p-2 rounded border border-slate-800';
+                        div.innerHTML = `<div class="text-[10px] font-bold text-slate-500 self-center">Slot ${i+1}</div>
+                                         <input type="text" id="rt-${i}" value="${d.config.solarman_prog_times[i]}" class="input text-[10px] font-mono">
+                                         <input type="text" id="rs-${i}" value="${d.config.solarman_prog_socs[i]}" class="input text-[10px] font-mono">
+                                         <input type="text" id="rg-${i}" value="${d.config.solarman_prog_grid_charges[i]}" class="input text-[10px] font-mono">`;
+                        rList.appendChild(div);
+                    }
                 }
-            }
-            solarArrays = d.config.solar_arrays || []; renderSolar();
-            updateChart(d.forecast);
+                solarArrays = d.config.solar_arrays || []; renderSolar();
+                updateChart(d.forecast);
+            } catch(e) {}
         }
 
         function updateBadge(id, error) {
             const b = document.getElementById(id); if(!b) return;
             b.className = 'status-badge ' + (error === 'OK' ? 'badge-online' : 'badge-offline');
+            b.title = error;
         }
 
         async function fetchLogs() {
-            const r = await fetch('/api/logs'), d = await r.json();
-            const w = document.getElementById('log-window');
-            w.innerHTML = d.logs.map(l => `<div>${l}</div>`).join('');
-            w.scrollTop = w.scrollHeight;
+            try {
+                const r = await fetch('/api/logs'), d = await r.json();
+                const w = document.getElementById('log-window');
+                w.innerHTML = d.logs.map(l => {
+                    const color = l.includes('ERROR') ? 'text-rose-400' : (l.includes('WARNING') ? 'text-amber-400' : 'text-slate-400');
+                    return `<div class="mb-1 border-b border-white/5 pb-1 ${color}">${l}</div>`;
+                }).join('');
+                w.scrollTop = w.scrollHeight;
+            } catch(e) {}
         }
 
         function renderSolar() {
@@ -179,7 +191,7 @@
                                  <input type="number" step="0.1" value="${a.kwp}" onchange="solarArrays[${i}].kwp=parseFloat(this.value)" class="input text-[10px]">
                                  <input type="number" value="${a.tilt}" onchange="solarArrays[${i}].tilt=parseInt(this.value)" class="input text-[10px]">
                                  <input type="number" value="${a.azimuth}" onchange="solarArrays[${i}].azimuth=parseInt(this.value)" class="input text-[10px]">
-                                 <button type="button" onclick="solarArrays.splice(${i},1);renderSolar()" class="text-rose-500 text-[10px]">X</button>`;
+                                 <button type="button" onclick="solarArrays.splice(${i},1);renderSolar()" class="text-rose-500 text-[10px] font-black">X</button>`;
                 l.appendChild(div);
             });
         }
@@ -190,7 +202,8 @@
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.getElementById('p-' + id).classList.remove('hidden');
             document.getElementById('t-' + id).classList.add('active');
-            if(id === 'logs') fetchLogs();
+            if(id === 'logs') { fetchLogs(); if(!window.logInterval) window.logInterval = setInterval(fetchLogs, 3000); }
+            else { clearInterval(window.logInterval); window.logInterval = null; }
         }
 
         async function runTest() { await fetch('/api/testrun', {method:'POST'}); showTab('logs'); }
@@ -204,7 +217,7 @@
                     labels: data.map(i => i.time),
                     datasets: [{ label: 'Planning', data: data.map(i => i.price), borderColor: '#10b981', tension: 0.4, fill: true, backgroundColor: 'rgba(16,185,129,0.05)' }]
                 },
-                options: { responsive: true, maintainAspectRatio: false }
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
             });
         }
 

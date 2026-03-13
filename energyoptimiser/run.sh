@@ -1,6 +1,6 @@
 #!/usr/bin/env bashio
 
-bashio::log.info "EnergyOptimiser v2026.3.40 is initializing..."
+bashio::log.info "EnergyOptimiser v2026.3.41 is initializing..."
 
 # Set System Timezone
 export TZ=$(bashio::info.timezone)

@@ -3,24 +3,34 @@ from fastapi.responses import HTMLResponse, JSONResponse
 import aiohttp, asyncio, os, json, logging, pytz, sys
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
+from nordpool import elspot
 
-# Advanced Logging with Buffer
+# Expliciete Logging Buffer Fix
 class LogBufferHandler(logging.Handler):
     def __init__(self, capacity=200):
         super().__init__()
         self.capacity = capacity
         self.buffer = []
     def emit(self, record):
-        msg = f"{datetime.now().strftime('%H:%M:%S')} - {record.levelname} - {self.format(record)}"
-        self.buffer.append(msg)
-        if len(self.buffer) > self.capacity: self.buffer.pop(0)
+        try:
+            msg = f"{datetime.now().strftime('%H:%M:%S')} - {record.levelname} - {self.format(record)}"
+            self.buffer.append(msg)
+            if len(self.buffer) > self.capacity: self.buffer.pop(0)
+        except Exception: pass
 
 log_buffer = LogBufferHandler()
-logging.basicConfig(level=logging.INFO, format='%(message)s', handlers=[logging.StreamHandler(sys.stdout), log_buffer])
+formatter = logging.Formatter('%(message)s')
+log_buffer.setFormatter(formatter)
+
 logger = logging.getLogger("energy-optimiser")
+logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler(sys.stdout))
+logger.addHandler(log_buffer)
+# Voorkom dat logs dubbel verschijnen of worden onderdrukt
+logger.propagate = False
 
 app = FastAPI(docs_url=None, redoc_url=None)
-CONFIG_PATH, VERSION = "/data/config.json", "2026.3.40"
+CONFIG_PATH, VERSION = "/data/config.json", "2026.3.41"
 
 DEFAULT_CONFIG = {
     "enabled": False, "market_area": "NL", "strategy": "Hoogste Verdienen",
@@ -39,7 +49,7 @@ class Optimizer:
         self.config = self.load_config()
         self.prices, self.forecast, self.last_update = [], [], None
         self.current_soc, self._session = 50.0, None
-        self.api_errors = {"prices": "", "weather": "", "ha": ""}
+        self.api_errors = {"prices": "Nordpool Standby", "weather": "", "ha": ""}
 
     def load_config(self):
         if os.path.exists(CONFIG_PATH):
@@ -51,7 +61,7 @@ class Optimizer:
     def save_config(self, cfg):
         self.config.update(cfg)
         with open(CONFIG_PATH, "w") as f: json.dump(self.config, f, indent=2)
-        logger.info("Instellingen opgeslagen.")
+        logger.info("Configuratie opgeslagen en gesynchroniseerd.")
 
     async def get_session(self):
         if self._session is None or self._session.closed:
@@ -66,16 +76,17 @@ class Optimizer:
         url = f"http://supervisor/core/api/services/{domain}/{service}"
         data = {"entity_id": entity_id}
         if domain == "number": data["value"] = value
-        
         try:
             session = await self.get_session()
             async with session.post(url, headers={"Authorization": f"Bearer {token}"}, json=data) as r:
-                if r.status != 200: logger.error(f"HA Write Error {entity_id}: {r.status}")
-        except Exception as e: logger.error(f"HA Connection Error: {e}")
+                if r.status != 200: logger.error(f"Fout bij schrijven naar HA ({entity_id}): {r.status}")
+        except Exception as e: logger.error(f"HA Verbindingsfout: {e}")
 
     async def fetch_data(self):
+        logger.info("Verversen van systeemdata via Nordpool...")
         session = await self.get_session()
-        # Get SOC
+        
+        # SOC ophalen
         token, entity = os.getenv("SUPERVISOR_TOKEN"), self.config.get("solarman_battery_soc")
         if token and entity:
             try:
@@ -84,50 +95,54 @@ class Optimizer:
                         data = await r.json()
                         self.current_soc = float(data.get("state", 50.0))
                         self.api_errors["ha"] = "OK"
-            except: self.api_errors["ha"] = "Error"
+                        logger.info(f"Huidige batterij SOC: {self.current_soc}%")
+            except: self.api_errors["ha"] = "HA Offline"
 
-        # Get Prices
+        # Nordpool Prijzen ophalen
         try:
-            now = datetime.now(pytz.timezone("Europe/Amsterdam"))
-            start, end = now.replace(hour=0,min=0,sec=0), now.replace(hour=0,min=0,sec=0) + timedelta(days=2)
-            url = f"https://api.energyzero.nl/v1/energyprices?fromDate={start.isoformat()}&toDate={end.isoformat()}&interval=4&usageType=1&inclBtw=true"
-            async with session.get(url) as r:
-                if r.status == 200:
-                    data = await r.json()
-                    raw_prices = [{"time": p["readingDate"], "price": float(p["price"])} for p in data.get("Prices", [])]
-                    self.prices = sorted(raw_prices, key=lambda x: x["time"])
-                    self.api_errors["prices"] = "OK"
-                    self.optimize()
-        except: self.api_errors["prices"] = "Error"
+            prices_elspot = elspot.Prices(currency='EUR')
+            # Fetch prices for NL region (Nordpool uses region identifiers)
+            # Regio NL is onderdeel van de spot prijzen
+            data = prices_elspot.hourly(areas=['NL'])
+            raw_prices = []
+            for entry in data['areas']['NL']['values']:
+                raw_prices.append({
+                    "time": entry['start'].isoformat(),
+                    "price": float(entry['value']) / 1000 # Omrekenen naar €/kWh
+                })
+            self.prices = sorted(raw_prices, key=lambda x: x["time"])
+            self.api_errors["prices"] = "OK"
+            logger.info(f"Nordpool prijzen succesvol opgehaald voor regio NL ({len(self.prices)} data-punten).")
+            self.optimize()
+        except Exception as e:
+            logger.error(f"Nordpool API Fout: {e}")
+            self.api_errors["prices"] = f"Nordpool Fout: {str(e)}"
 
     def optimize(self):
         if not self.prices: return
         strategy = self.config.get("strategy", "Hoogste Verdienen")
-        logger.info(f"Start optimalisatie via strategie: {strategy}")
+        logger.info(f"Start optimalisatie-cyclus. Gekozen strategie: {strategy}")
         
         sorted_prices = sorted(self.prices[:24], key=lambda x: x["price"])
         cheap_hours = [p["time"] for p in sorted_prices[:6]]
-        expensive_hours = [p["time"] for p in sorted_prices[-6:]]
         
         slots = []
         if strategy == "Hoogste Verdienen":
-            # Arbitrage: Volledig laden bij goedkoop, ontladen bij duur
             for i in range(6):
-                time_dt = datetime.fromisoformat(self.prices[i*4]["time"].replace("Z", "+00:00"))
-                is_cheap = self.prices[i*4]["time"] in cheap_hours
+                idx = i * 4 if i * 4 < len(self.prices) else len(self.prices) - 1
+                time_dt = datetime.fromisoformat(self.prices[idx]["time"].replace("Z", "+00:00"))
+                is_cheap = self.prices[idx]["time"] in cheap_hours
                 slots.append({
                     "time": time_dt.strftime("%H:%M"),
-                    "soc": 100 if is_cheap else self.config["battery_min_soc"],
+                    "soc": 100 if is_cheap else self.config.get("battery_min_soc", 20),
                     "grid": "on" if is_cheap else "off"
                 })
         elif strategy == "Hoogst eigen gebruik":
-            # Solar focus: Accu leegmaken voor de zon komt
             for i in range(6):
                 hour = i * 4
-                is_morning = 4 <= hour <= 10
                 slots.append({
                     "time": f"{hour:02d}:00",
-                    "soc": 20 if is_morning else 100,
+                    "soc": 20 if 4 <= hour <= 10 else 100,
                     "grid": "off"
                 })
         else: # 0 op de meter
@@ -135,15 +150,16 @@ class Optimizer:
                 slots.append({"time": f"{i*4:02d}:00", "soc": 50, "grid": "off"})
 
         self.forecast = [{"time": s["time"], "price": 0, "action": "CHARGE" if s["grid"]=="on" else "IDLE"} for s in slots]
+        self.last_update = datetime.now()
         asyncio.create_task(self.apply_to_inverter(slots))
 
     async def apply_to_inverter(self, slots):
-        logger.info("Instellingen naar omvormer pushen...")
+        logger.info("Nieuwe programma-slots naar de omvormer sturen...")
         for i, slot in enumerate(slots[:6]):
             await self.write_to_ha(self.config["solarman_prog_times"][i], slot["time"])
             await self.write_to_ha(self.config["solarman_prog_socs"][i], slot["soc"])
             await self.write_to_ha(self.config["solarman_prog_grid_charges"][i], slot["grid"])
-        logger.info("Inverter succesvol bijgewerkt.")
+        logger.info("Optimalisatie succesvol toegepast op HA entiteiten.")
 
     async def loop(self):
         while True:
@@ -153,19 +169,32 @@ class Optimizer:
 state = Optimizer()
 
 @app.on_event("startup")
-async def startup(): asyncio.create_task(state.loop())
+async def startup():
+    logger.info(f"EnergyOptimiser Engine {VERSION} wordt opgestart...")
+    asyncio.create_task(state.loop())
 
 @app.get("/api/status")
-async def status(): return {"config": state.config, "forecast": state.forecast, "last_update": datetime.now(), "current_soc": state.current_soc, "api_errors": state.api_errors, "version": VERSION}
+async def status():
+    return {
+        "config": state.config, "forecast": state.forecast, 
+        "last_update": state.last_update, "current_soc": state.current_soc, 
+        "api_errors": state.api_errors, "version": VERSION
+    }
 
 @app.get("/api/logs")
-async def get_logs(): return {"logs": log_buffer.buffer}
+async def get_logs():
+    return {"logs": log_buffer.buffer}
 
 @app.post("/api/testrun")
-async def test(): await state.fetch_data(); return {"ok": True}
+async def test():
+    logger.info("Handmatige testrun geactiveerd via UI.")
+    await state.fetch_data()
+    return {"status": "ok"}
 
 @app.post("/api/config")
-async def update_cfg(cfg: dict): state.save_config(cfg); return {"ok": True}
+async def update_cfg(cfg: dict):
+    state.save_config(cfg)
+    return {"ok": True}
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
