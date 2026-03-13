@@ -4,13 +4,12 @@ import aiohttp, asyncio, os, json, logging, pytz, sys
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 
-# Advanced Logging with Buffer for UI
+# Advanced Logging
 class LogBufferHandler(logging.Handler):
     def __init__(self, capacity=200):
         super().__init__()
         self.capacity = capacity
         self.buffer = []
-
     def emit(self, record):
         msg = f"{datetime.now().strftime('%H:%M:%S')} - {record.levelname} - {self.format(record)}"
         self.buffer.append(msg)
@@ -21,7 +20,7 @@ logging.basicConfig(level=logging.INFO, format='%(message)s', handlers=[logging.
 logger = logging.getLogger("energy-optimiser")
 
 app = FastAPI(docs_url=None, redoc_url=None)
-CONFIG_PATH, VERSION = "/data/config.json", "2026.3.37"
+CONFIG_PATH, VERSION = "/data/config.json", "2026.3.38"
 
 DEFAULT_CONFIG = {
     "enabled": False, "market_area": "NL", "strategy": "Maximize Profit",
@@ -50,9 +49,9 @@ class Optimizer:
         return DEFAULT_CONFIG
 
     def save_config(self, cfg):
-        self.config.update(cfg); 
+        self.config.update(cfg)
         with open(CONFIG_PATH, "w") as f: json.dump(self.config, f, indent=2)
-        logger.info("Configuration saved successfully.")
+        logger.info("Configuration updated and stored in /data/config.json")
 
     async def get_session(self):
         if self._session is None or self._session.closed:
@@ -61,7 +60,6 @@ class Optimizer:
 
     async def fetch_data(self):
         session = await self.get_session()
-        # HA SOC Sync
         token, entity = os.getenv("SUPERVISOR_TOKEN"), self.config.get("solarman_battery_soc")
         if token and entity:
             try:
@@ -70,14 +68,9 @@ class Optimizer:
                         data = await r.json()
                         self.current_soc = float(data.get("state", 50.0))
                         self.api_errors["ha"] = "OK"
-                    else:
-                        self.api_errors["ha"] = f"Error {r.status}: {await r.text()}"
-                        logger.error(f"HA API Error: {self.api_errors['ha']}")
-            except Exception as e:
-                self.api_errors["ha"] = str(e)
-                logger.error(f"HA Connection Failed: {e}")
+                    else: self.api_errors["ha"] = f"Error {r.status}"
+            except: self.api_errors["ha"] = "Connection Failed"
 
-        # EnergyZero Prices
         try:
             now = datetime.now(pytz.timezone("Europe/Amsterdam"))
             start, end = now.replace(hour=0,min=0,sec=0), now.replace(hour=0,min=0,sec=0) + timedelta(days=2)
@@ -90,27 +83,8 @@ class Optimizer:
                     self.forecast = [{"time": p["time"], "price": p["price"], "action": "CHARGE" if p["price"] < avg * 0.9 else "IDLE"} for p in self.prices[:24]]
                     self.last_update = datetime.now()
                     self.api_errors["prices"] = "OK"
-                else:
-                    self.api_errors["prices"] = f"Error {r.status}: {await r.text()}"
-                    logger.error(f"Price API Error: {self.api_errors['prices']}")
-        except Exception as e:
-            self.api_errors["prices"] = str(e)
-            logger.error(f"Price Fetch Failed: {e}")
-
-        # Meteoserver Weather
-        key, loc = self.config.get("meteoserver_key"), self.config.get("meteoserver_location")
-        if key and loc:
-            try:
-                url = f"https://data.meteoserver.nl/api/uurverwachting.php?key={key}&locatie={loc}"
-                async with session.get(url) as r:
-                    if r.status == 200: 
-                        self.api_errors["weather"] = "OK"
-                    else:
-                        self.api_errors["weather"] = f"Error {r.status}: {await r.text()}"
-                        logger.error(f"Weather API Error: {self.api_errors['weather']}")
-            except Exception as e:
-                self.api_errors["weather"] = str(e)
-                logger.error(f"Weather Fetch Failed: {e}")
+                else: self.api_errors["prices"] = f"Error {r.status}"
+        except: self.api_errors["prices"] = "Fetch Failed"
 
     async def loop(self):
         while True:
